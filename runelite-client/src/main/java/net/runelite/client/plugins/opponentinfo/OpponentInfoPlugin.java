@@ -25,17 +25,10 @@
  */
 package net.runelite.client.plugins.opponentinfo;
 
-import com.google.common.eventbus.Subscribe;
-import com.google.common.reflect.TypeToken;
-import com.google.gson.Gson;
 import com.google.inject.Provides;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.lang.reflect.Type;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumSet;
-import java.util.Map;
 import javax.inject.Inject;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -47,6 +40,7 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.InteractingChanged;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -84,9 +78,6 @@ public class OpponentInfoPlugin extends Plugin
 
 	private Instant lastTime;
 
-	@Getter(AccessLevel.PACKAGE)
-	private final Map<String, Integer> oppInfoHealth = loadNpcHealth();
-
 	@Provides
 	OpponentInfoConfig provideConfig(ConfigManager configManager)
 	{
@@ -117,14 +108,18 @@ public class OpponentInfoPlugin extends Plugin
 			return;
 		}
 
-		EnumSet<WorldType> worldType = client.getWorldType();
-		if (worldType.contains(WorldType.DEADMAN))
+		final EnumSet<WorldType> worldType = client.getWorldType();
+		if (worldType.contains(WorldType.DEADMAN_TOURNAMENT))
 		{
-			hiscoreEndpoint = HiscoreEndpoint.DEADMAN;
+			hiscoreEndpoint = HiscoreEndpoint.DEADMAN_TOURNAMENT;
 		}
 		else if (worldType.contains(WorldType.SEASONAL_DEADMAN))
 		{
 			hiscoreEndpoint = HiscoreEndpoint.SEASONAL_DEADMAN;
+		}
+		else if (worldType.contains(WorldType.DEADMAN))
+		{
+			hiscoreEndpoint = HiscoreEndpoint.DEADMAN;
 		}
 		else
 		{
@@ -154,23 +149,14 @@ public class OpponentInfoPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick gameTick)
 	{
-		if (lastOpponent != null && client.getLocalPlayer().getInteracting() == null)
+		if (lastOpponent != null
+			&& lastTime != null
+			&& client.getLocalPlayer().getInteracting() == null)
 		{
 			if (Duration.between(lastTime, Instant.now()).compareTo(WAIT) > 0)
 			{
 				lastOpponent = null;
 			}
 		}
-	}
-
-	private Map<String, Integer> loadNpcHealth()
-	{
-		Gson gson = new Gson();
-		Type type = new TypeToken<Map<String, Integer>>()
-		{
-		}.getType();
-
-		InputStream healthFile = OpponentInfoPlugin.class.getResourceAsStream("/npc_health.json");
-		return gson.fromJson(new InputStreamReader(healthFile), type);
 	}
 }

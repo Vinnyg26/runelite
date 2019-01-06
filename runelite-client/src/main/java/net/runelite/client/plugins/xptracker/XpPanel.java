@@ -63,11 +63,11 @@ class XpPanel extends PluginPanel
 	/* This displays the "No exp gained" text */
 	private final PluginErrorPanel errorPanel = new PluginErrorPanel();
 
-	XpPanel(XpTrackerPlugin xpTrackerPlugin, Client client, SkillIconManager iconManager)
+	XpPanel(XpTrackerPlugin xpTrackerPlugin, XpTrackerConfig xpTrackerConfig, Client client, SkillIconManager iconManager)
 	{
 		super();
 
-		setBorder(new EmptyBorder(10, 6, 10, 6));
+		setBorder(new EmptyBorder(6, 6, 6, 6));
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
 		setLayout(new BorderLayout());
 
@@ -89,11 +89,22 @@ class XpPanel extends PluginPanel
 		final JMenuItem reset = new JMenuItem("Reset All");
 		reset.addActionListener(e -> xpTrackerPlugin.resetAndInitState());
 
+		// Create pause all menu
+		final JMenuItem pauseAll = new JMenuItem("Pause All");
+		pauseAll.addActionListener(e -> xpTrackerPlugin.pauseAllSkills(true));
+
+		// Create unpause all menu
+		final JMenuItem unpauseAll = new JMenuItem("Unpause All");
+		unpauseAll.addActionListener(e -> xpTrackerPlugin.pauseAllSkills(false));
+
+
 		// Create popup menu
 		final JPopupMenu popupMenu = new JPopupMenu();
 		popupMenu.setBorder(new EmptyBorder(5, 5, 5, 5));
 		popupMenu.add(openXpTracker);
 		popupMenu.add(reset);
+		popupMenu.add(pauseAll);
+		popupMenu.add(unpauseAll);
 		overallPanel.setComponentPopupMenu(popupMenu);
 
 		final JLabel overallIcon = new JLabel(new ImageIcon(iconManager.getSkillImage(Skill.OVERALL)));
@@ -126,7 +137,7 @@ class XpPanel extends PluginPanel
 				{
 					break;
 				}
-				infoBoxes.put(skill, new XpInfoBox(xpTrackerPlugin, client, infoBoxPanel, skill, iconManager));
+				infoBoxes.put(skill, new XpInfoBox(xpTrackerPlugin, xpTrackerConfig, client, infoBoxPanel, skill, iconManager));
 			}
 		}
 		catch (IOException e)
@@ -172,16 +183,15 @@ class XpPanel extends PluginPanel
 		}
 	}
 
-	void updateSkillExperience(boolean updated, Skill skill, XpSnapshotSingle xpSnapshotSingle)
+	void updateSkillExperience(boolean updated, boolean paused, Skill skill, XpSnapshotSingle xpSnapshotSingle)
 	{
 		final XpInfoBox xpInfoBox = infoBoxes.get(skill);
 
 		if (xpInfoBox != null)
 		{
-			xpInfoBox.update(updated, xpSnapshotSingle);
+			xpInfoBox.update(updated, paused, xpSnapshotSingle);
 		}
 	}
-
 
 	void updateTotal(XpSnapshotTotal xpSnapshotTotal)
 	{

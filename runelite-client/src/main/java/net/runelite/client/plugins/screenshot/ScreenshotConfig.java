@@ -120,25 +120,70 @@ public interface ScreenshotConfig extends Config
 		return false;
 	}
 
-	@ConfigItem(
-		keyName = "hotkey",
-		name = "Screenshot hotkey",
-		description = "When you press this key a screenshot will be taken",
-		position = 10
-	)
-	default Keybind hotkey()
-	{
-		return Keybind.NOT_SET;
-	}
 
 	@ConfigItem(
 		keyName = "kills",
 		name = "Screenshot PvP Kills",
 		description = "Configures whether or not screenshots are automatically taken of PvP kills",
-		position = 9
+		position = 8
 	)
 	default boolean screenshotKills()
 	{
 		return false;
+	}
+
+	@ConfigItem(
+		keyName = "boss",
+		name = "Screenshot Boss Kills",
+		description = "Configures whether or not screenshots are automatically taken of boss kills",
+		position = 9
+	)
+	default boolean screenshotBossKills()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "playerDeath",
+		name = "Screenshot Deaths",
+		description = "Configures whether or not screenshots are automatically taken when you die.",
+		position = 10
+	)
+	default boolean screenshotPlayerDeath()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "valuableDrop",
+		name = "Screenshot Valuable drops",
+		description = "Configures whether or not screenshots are automatically taken when you receive a valuable drop.",
+		position = 11
+	)
+	default boolean screenshotValuableDrop()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "untradeableDrop",
+		name = "Screenshot Untradeable drops",
+		description = "Configures whether or not screenshots are automatically taken when you receive an untradeable drop.",
+		position = 12
+	)
+	default boolean screenshotUntradeableDrop()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "hotkey",
+		name = "Screenshot hotkey",
+		description = "When you press this key a screenshot will be taken",
+		position = 13
+	)
+	default Keybind hotkey()
+	{
+		return Keybind.NOT_SET;
 	}
 }

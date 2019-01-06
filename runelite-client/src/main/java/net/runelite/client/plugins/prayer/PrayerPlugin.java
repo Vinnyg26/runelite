@@ -25,9 +25,12 @@
  */
 package net.runelite.client.plugins.prayer;
 
-import com.google.common.eventbus.Subscribe;
 import com.google.inject.Provides;
+import java.time.Duration;
+import java.time.Instant;
 import javax.inject.Inject;
+import lombok.AccessLevel;
+import lombok.Getter;
 import net.runelite.api.Client;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
@@ -37,6 +40,7 @@ import net.runelite.api.events.ConfigChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -51,6 +55,11 @@ import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
 public class PrayerPlugin extends Plugin
 {
 	private final PrayerCounter[] prayerCounter = new PrayerCounter[PrayerType.values().length];
+
+	private Instant startOfLastTick = Instant.now();
+
+	@Getter(AccessLevel.PACKAGE)
+	private boolean prayersActive = false;
 
 	@Inject
 	private Client client;
@@ -71,6 +80,9 @@ public class PrayerPlugin extends Plugin
 	private PrayerDoseOverlay doseOverlay;
 
 	@Inject
+	private PrayerBarOverlay barOverlay;
+
+	@Inject
 	private PrayerConfig config;
 
 	@Provides
@@ -84,6 +96,7 @@ public class PrayerPlugin extends Plugin
 	{
 		overlayManager.add(flickOverlay);
 		overlayManager.add(doseOverlay);
+		overlayManager.add(barOverlay);
 	}
 
 	@Override
@@ -91,6 +104,7 @@ public class PrayerPlugin extends Plugin
 	{
 		overlayManager.remove(flickOverlay);
 		overlayManager.remove(doseOverlay);
+		overlayManager.remove(barOverlay);
 		removeIndicators();
 	}
 
@@ -120,8 +134,7 @@ public class PrayerPlugin extends Plugin
 		if (container == inventory || container == equipment)
 		{
 			doseOverlay.setHasHolyWrench(false);
-			doseOverlay.setHasPrayerPotion(false);
-			doseOverlay.setHasRestorePotion(false);
+			doseOverlay.setHasPrayerRestore(false);
 
 			if (inventory != null)
 			{
@@ -139,14 +152,21 @@ public class PrayerPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick tick)
 	{
-		if (config.prayerFlickHelper())
+		prayersActive = isAnyPrayerActive();
+
+		if (!config.prayerFlickLocation().equals(PrayerFlickLocation.NONE))
 		{
-			flickOverlay.onTick();
+			startOfLastTick = Instant.now();
 		}
 
 		if (config.showPrayerDoseIndicator())
 		{
 			doseOverlay.onTick();
+		}
+
+		if (config.showPrayerBar())
+		{
+			barOverlay.onTick();
 		}
 
 		if (!config.prayerIndicator())
@@ -205,13 +225,12 @@ public class PrayerPlugin extends Plugin
 				switch (type)
 				{
 					case PRAYERPOT:
-						doseOverlay.setHasPrayerPotion(true);
+					case RESTOREPOT:
+					case SANFEWPOT:
+						doseOverlay.setHasPrayerRestore(true);
 						break;
 					case HOLYWRENCH:
 						doseOverlay.setHasHolyWrench(true);
-						break;
-					case RESTOREPOT:
-						doseOverlay.setHasRestorePotion(true);
 						break;
 				}
 			}
@@ -221,6 +240,27 @@ public class PrayerPlugin extends Plugin
 		}
 
 		return total;
+	}
+
+	double getTickProgress()
+	{
+		long timeSinceLastTick = Duration.between(startOfLastTick, Instant.now()).toMillis();
+
+		float tickProgress = (timeSinceLastTick % 600) / 600f;
+		return tickProgress * Math.PI;
+	}
+
+	private boolean isAnyPrayerActive()
+	{
+		for (Prayer pray : Prayer.values())//Check if any prayers are active
+		{
+			if (client.isPrayerActive(pray))
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private void removeIndicators()

@@ -25,11 +25,9 @@
  */
 package net.runelite.client.plugins.chatcommands;
 
-import com.google.common.eventbus.Subscribe;
 import com.google.inject.Provides;
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,30 +36,40 @@ import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
-import net.runelite.api.GameState;
+import net.runelite.api.Experience;
+import net.runelite.api.IconID;
 import net.runelite.api.ItemComposition;
 import net.runelite.api.MessageNode;
+import net.runelite.api.VarPlayer;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.SetMessage;
+import net.runelite.api.events.VarbitChanged;
+import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.vars.AccountType;
+import net.runelite.api.widgets.Widget;
+import static net.runelite.api.widgets.WidgetID.KILL_LOGS_GROUP_ID;
+import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.chat.ChatColorType;
+import net.runelite.client.chat.ChatCommandManager;
 import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ChatInput;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.util.StackFormatter;
+import net.runelite.http.api.chat.ChatClient;
 import net.runelite.http.api.hiscore.HiscoreClient;
 import net.runelite.http.api.hiscore.HiscoreEndpoint;
 import net.runelite.http.api.hiscore.HiscoreResult;
 import net.runelite.http.api.hiscore.HiscoreSkill;
 import net.runelite.http.api.hiscore.SingleHiscoreSkillResult;
 import net.runelite.http.api.hiscore.Skill;
-import net.runelite.http.api.item.Item;
 import net.runelite.http.api.item.ItemPrice;
-import net.runelite.http.api.item.SearchResult;
 
 @PluginDescriptor(
 	name = "Chat Commands",
@@ -72,10 +80,23 @@ import net.runelite.http.api.item.SearchResult;
 public class ChatCommandsPlugin extends Plugin
 {
 	private static final float HIGH_ALCHEMY_CONSTANT = 0.6f;
-	private static final Pattern KILLCOUNT_PATERN = Pattern.compile("Your ([a-zA-Z ]+) kill count is: <col=ff0000>(\\d+)</col>.");
-	private static final Pattern WINTERTODT_PATERN = Pattern.compile("Your subdued Wintertodt count is: <col=ff0000>(\\d+)</col>.");
+	private static final Pattern KILLCOUNT_PATTERN = Pattern.compile("Your (.+) kill count is: <col=ff0000>(\\d+)</col>.");
+	private static final Pattern RAIDS_PATTERN = Pattern.compile("Your completed (.+) count is: <col=ff0000>(\\d+)</col>.");
+	private static final Pattern WINTERTODT_PATTERN = Pattern.compile("Your subdued Wintertodt count is: <col=ff0000>(\\d+)</col>.");
+	private static final Pattern BARROWS_PATTERN = Pattern.compile("Your Barrows chest count is: <col=ff0000>(\\d+)</col>.");
+	private static final String TOTAL_LEVEL_COMMAND_STRING = "!total";
+	private static final String PRICE_COMMAND_STRING = "!price";
+	private static final String LEVEL_COMMAND_STRING = "!lvl";
+	private static final String CLUES_COMMAND_STRING = "!clues";
+	private static final String KILLCOUNT_COMMAND_STRING = "!kc";
+	private static final String CMB_COMMAND_STRING = "!cmb";
+	private static final String QP_COMMAND_STRING = "!qp";
 
 	private final HiscoreClient hiscoreClient = new HiscoreClient();
+	private final ChatClient chatClient = new ChatClient();
+
+	private boolean logKills;
+	private HiscoreEndpoint hiscoreEndpoint; // hiscore endpoint for current player
 
 	@Inject
 	private Client client;
@@ -93,6 +114,9 @@ public class ChatCommandsPlugin extends Plugin
 	private ChatMessageManager chatMessageManager;
 
 	@Inject
+	private ChatCommandManager chatCommandManager;
+
+	@Inject
 	private ScheduledExecutorService executor;
 
 	@Inject
@@ -105,12 +129,28 @@ public class ChatCommandsPlugin extends Plugin
 	public void startUp()
 	{
 		keyManager.registerKeyListener(chatKeyboardListener);
+
+		chatCommandManager.registerCommandAsync(TOTAL_LEVEL_COMMAND_STRING, this::playerSkillLookup);
+		chatCommandManager.registerCommandAsync(CMB_COMMAND_STRING, this::combatLevelLookup);
+		chatCommandManager.registerCommand(PRICE_COMMAND_STRING, this::itemPriceLookup);
+		chatCommandManager.registerCommandAsync(LEVEL_COMMAND_STRING, this::playerSkillLookup);
+		chatCommandManager.registerCommandAsync(CLUES_COMMAND_STRING, this::clueLookup);
+		chatCommandManager.registerCommandAsync(KILLCOUNT_COMMAND_STRING, this::killCountLookup, this::killCountSubmit);
+		chatCommandManager.registerCommand(QP_COMMAND_STRING, this::questPointsLookup, this::questPointsSubmit);
 	}
 
 	@Override
 	public void shutDown()
 	{
 		keyManager.unregisterKeyListener(chatKeyboardListener);
+
+		chatCommandManager.unregisterCommand(TOTAL_LEVEL_COMMAND_STRING);
+		chatCommandManager.unregisterCommand(CMB_COMMAND_STRING);
+		chatCommandManager.unregisterCommand(PRICE_COMMAND_STRING);
+		chatCommandManager.unregisterCommand(LEVEL_COMMAND_STRING);
+		chatCommandManager.unregisterCommand(CLUES_COMMAND_STRING);
+		chatCommandManager.unregisterCommand(KILLCOUNT_COMMAND_STRING);
+		chatCommandManager.unregisterCommand(QP_COMMAND_STRING);
 	}
 
 	@Provides
@@ -132,70 +172,6 @@ public class ChatCommandsPlugin extends Plugin
 		return killCount == null ? 0 : killCount;
 	}
 
-	/**
-	 * Checks if the chat message is a command.
-	 *
-	 * @param setMessage The chat message.
-	 */
-	@Subscribe
-	public void onSetMessage(SetMessage setMessage)
-	{
-		if (client.getGameState() != GameState.LOGGED_IN)
-		{
-			return;
-		}
-
-		switch (setMessage.getType())
-		{
-			case PUBLIC:
-			case CLANCHAT:
-			case PRIVATE_MESSAGE_RECEIVED:
-			case PRIVATE_MESSAGE_SENT:
-				break;
-			default:
-				return;
-		}
-
-		String message = setMessage.getValue();
-		MessageNode messageNode = setMessage.getMessageNode();
-
-		// clear RuneLite formatted message as the message node is
-		// being reused
-		messageNode.setRuneLiteFormatMessage(null);
-
-		if (config.lvl() && message.toLowerCase().equals("!total"))
-		{
-			log.debug("Running total level lookup");
-			executor.submit(() -> playerSkillLookup(setMessage, "total"));
-		}
-		else if (config.price() && message.toLowerCase().startsWith("!price") && message.length() > 7)
-		{
-			String search = message.substring(7);
-
-			log.debug("Running price lookup for {}", search);
-			executor.submit(() -> itemPriceLookup(setMessage.getMessageNode(), search));
-		}
-		else if (config.lvl() && message.toLowerCase().startsWith("!lvl") && message.length() > 5)
-		{
-			String search = message.substring(5);
-
-			log.debug("Running level lookup for {}", search);
-			executor.submit(() -> playerSkillLookup(setMessage, search));
-		}
-		else if (config.clue() && message.toLowerCase().equals("!clues"))
-		{
-			log.debug("Running lookup for overall clues");
-			executor.submit(() -> playerClueLookup(setMessage, "total"));
-		}
-		else if (config.clue() && message.toLowerCase().startsWith("!clues") && message.length() > 7)
-		{
-			String search = message.substring(7);
-
-			log.debug("Running clue lookup for {}", search);
-			executor.submit(() -> playerClueLookup(setMessage, search));
-		}
-	}
-
 	@Subscribe
 	public void onChatMessage(ChatMessage chatMessage)
 	{
@@ -205,7 +181,7 @@ public class ChatCommandsPlugin extends Plugin
 		}
 
 		String message = chatMessage.getMessage();
-		Matcher matcher = KILLCOUNT_PATERN.matcher(message);
+		Matcher matcher = KILLCOUNT_PATTERN.matcher(message);
 		if (matcher.find())
 		{
 			String boss = matcher.group(1);
@@ -214,47 +190,262 @@ public class ChatCommandsPlugin extends Plugin
 			setKc(boss, kc);
 		}
 
-		matcher = WINTERTODT_PATERN.matcher(message);
+		matcher = WINTERTODT_PATTERN.matcher(message);
 		if (matcher.find())
 		{
 			int kc = Integer.parseInt(matcher.group(1));
 
 			setKc("Wintertodt", kc);
 		}
+
+		matcher = RAIDS_PATTERN.matcher(message);
+		if (matcher.find())
+		{
+			String boss = matcher.group(1);
+			int kc = Integer.parseInt(matcher.group(2));
+
+			setKc(boss, kc);
+		}
+
+		matcher = BARROWS_PATTERN.matcher(message);
+		if (matcher.find())
+		{
+			int kc = Integer.parseInt(matcher.group(1));
+
+			setKc("Barrows Chests", kc);
+		}
+	}
+
+	@Subscribe
+	public void onGameTick(GameTick event)
+	{
+		if (!logKills)
+		{
+			return;
+		}
+
+		logKills = false;
+
+		Widget title = client.getWidget(WidgetInfo.KILL_LOG_TITLE);
+		Widget bossMonster = client.getWidget(WidgetInfo.KILL_LOG_MONSTER);
+		Widget bossKills = client.getWidget(WidgetInfo.KILL_LOG_KILLS);
+
+		if (title == null || bossMonster == null || bossKills == null
+			|| !"Boss Kill Log".equals(title.getText()))
+		{
+			return;
+		}
+
+		Widget[] bossChildren = bossMonster.getChildren();
+		Widget[] killsChildren = bossKills.getChildren();
+
+		for (int i = 0; i < bossChildren.length; ++i)
+		{
+			Widget boss = bossChildren[i];
+			Widget kill = killsChildren[i];
+
+			String bossName = boss.getText();
+			int kc = Integer.parseInt(kill.getText().replace(",", ""));
+			if (kc != getKc(bossName))
+			{
+				setKc(bossName, kc);
+			}
+		}
+	}
+
+	@Subscribe
+	public void onWidgetLoaded(WidgetLoaded widget)
+	{
+		// don't load kc if in an instance, if the player is in another players poh
+		// and reading their boss log
+		if (widget.getGroupId() != KILL_LOGS_GROUP_ID || client.isInInstancedRegion())
+		{
+			return;
+		}
+
+		logKills = true;
+	}
+
+	@Subscribe
+	public void onVarbitChanged(VarbitChanged varbitChanged)
+	{
+		hiscoreEndpoint = getLocalHiscoreEndpointType();
+	}
+
+	private boolean killCountSubmit(ChatInput chatInput, String value)
+	{
+		int idx = value.indexOf(' ');
+		final String boss = longBossName(value.substring(idx + 1));
+
+		final int kc = getKc(boss);
+		if (kc <= 0)
+		{
+			return false;
+		}
+
+		final String playerName = client.getLocalPlayer().getName();
+
+		executor.execute(() ->
+		{
+			try
+			{
+				chatClient.submitKc(playerName, boss, kc);
+			}
+			catch (Exception ex)
+			{
+				log.warn("unable to submit killcount", ex);
+			}
+			finally
+			{
+				chatInput.resume();
+			}
+		});
+
+		return true;
+	}
+
+	private void killCountLookup(SetMessage setMessage, String message)
+	{
+		if (!config.killcount())
+		{
+			return;
+		}
+
+		ChatMessageType type = setMessage.getType();
+		String search = message.substring(KILLCOUNT_COMMAND_STRING.length() + 1);
+
+		final String player;
+		if (type.equals(ChatMessageType.PRIVATE_MESSAGE_SENT))
+		{
+			player = client.getLocalPlayer().getName();
+		}
+		else
+		{
+			player = sanitize(setMessage.getName());
+		}
+
+		search = longBossName(search);
+
+		final int kc;
+		try
+		{
+			kc = chatClient.getKc(player, search);
+		}
+		catch (IOException ex)
+		{
+			log.debug("unable to lookup killcount", ex);
+			return;
+		}
+
+		String response = new ChatMessageBuilder()
+			.append(ChatColorType.HIGHLIGHT)
+			.append(search)
+			.append(ChatColorType.NORMAL)
+			.append(" kill count: ")
+			.append(ChatColorType.HIGHLIGHT)
+			.append(Integer.toString(kc))
+			.build();
+
+		log.debug("Setting response {}", response);
+		final MessageNode messageNode = setMessage.getMessageNode();
+		messageNode.setRuneLiteFormatMessage(response);
+		chatMessageManager.update(messageNode);
+		client.refreshChat();
+	}
+
+	private void questPointsLookup(SetMessage setMessage, String message)
+	{
+		if (!config.qp())
+		{
+			return;
+		}
+
+		ChatMessageType type = setMessage.getType();
+
+		final String player;
+		if (type.equals(ChatMessageType.PRIVATE_MESSAGE_SENT))
+		{
+			player = client.getLocalPlayer().getName();
+		}
+		else
+		{
+			player = sanitize(setMessage.getName());
+		}
+
+		int qp;
+		try
+		{
+			qp = chatClient.getQp(player);
+		}
+		catch (IOException ex)
+		{
+			log.debug("unable to lookup quest points", ex);
+			return;
+		}
+
+		String response = new ChatMessageBuilder()
+			.append(ChatColorType.NORMAL)
+			.append("Quest points: ")
+			.append(ChatColorType.HIGHLIGHT)
+			.append(Integer.toString(qp))
+			.build();
+
+		log.debug("Setting response {}", response);
+		final MessageNode messageNode = setMessage.getMessageNode();
+		messageNode.setRuneLiteFormatMessage(response);
+		chatMessageManager.update(messageNode);
+		client.refreshChat();
+	}
+
+	private boolean questPointsSubmit(ChatInput chatInput, String value)
+	{
+		final int qp = client.getVar(VarPlayer.QUEST_POINTS);
+		final String playerName = client.getLocalPlayer().getName();
+
+		executor.execute(() ->
+		{
+			try
+			{
+				chatClient.submitQp(playerName, qp);
+			}
+			catch (Exception ex)
+			{
+				log.warn("unable to submit quest poinits", ex);
+			}
+			finally
+			{
+				chatInput.resume();
+			}
+		});
+
+		return true;
 	}
 
 	/**
 	 * Looks up the item price and changes the original message to the
 	 * response.
 	 *
-	 * @param messageNode The chat message containing the command.
-	 * @param search The item given with the command.
+	 * @param setMessage The chat message containing the command.
+	 * @param message    The chat message
 	 */
-	private void itemPriceLookup(MessageNode messageNode, String search)
+	private void itemPriceLookup(SetMessage setMessage, String message)
 	{
-		SearchResult result;
-
-		try
+		if (!config.price())
 		{
-			result = itemManager.searchForItem(search);
-		}
-		catch (ExecutionException ex)
-		{
-			log.warn("Unable to search for item {}", search, ex);
 			return;
 		}
 
-		if (result != null && !result.getItems().isEmpty())
+		MessageNode messageNode = setMessage.getMessageNode();
+		String search = message.substring(PRICE_COMMAND_STRING.length() + 1);
+
+		List<ItemPrice> results = itemManager.search(search);
+
+		if (!results.isEmpty())
 		{
-			Item item = retrieveFromList(result.getItems(), search);
-			if (item == null)
-			{
-				log.debug("Unable to find item {} in result {}", search, result);
-				return;
-			}
+			ItemPrice item = retrieveFromList(results, search);
 
 			int itemId = item.getId();
-			ItemPrice itemPrice = itemManager.getItemPrice(itemId);
+			int itemPrice = item.getPrice();
 
 			final ChatMessageBuilder builder = new ChatMessageBuilder()
 				.append(ChatColorType.NORMAL)
@@ -264,7 +455,7 @@ public class ChatCommandsPlugin extends Plugin
 				.append(ChatColorType.NORMAL)
 				.append(": GE average ")
 				.append(ChatColorType.HIGHLIGHT)
-				.append(StackFormatter.formatNumber(itemPrice.getPrice()));
+				.append(StackFormatter.formatNumber(itemPrice));
 
 			ItemComposition itemComposition = itemManager.getItemComposition(itemId);
 			if (itemComposition != null)
@@ -291,10 +482,25 @@ public class ChatCommandsPlugin extends Plugin
 	 * response.
 	 *
 	 * @param setMessage The chat message containing the command.
-	 * @param search The item given with the command.
+	 * @param message    The chat message
 	 */
-	private void playerSkillLookup(SetMessage setMessage, String search)
+	private void playerSkillLookup(SetMessage setMessage, String message)
 	{
+		if (!config.lvl())
+		{
+			return;
+		}
+
+		String search;
+		if (message.equalsIgnoreCase(TOTAL_LEVEL_COMMAND_STRING))
+		{
+			search = "total";
+		}
+		else
+		{
+			search = message.substring(LEVEL_COMMAND_STRING.length() + 1);
+		}
+
 		search = SkillAbbreviations.getFullName(search);
 		final HiscoreSkill skill;
 		try
@@ -311,6 +517,13 @@ public class ChatCommandsPlugin extends Plugin
 		try
 		{
 			final SingleHiscoreSkillResult result = hiscoreClient.lookup(lookup.getName(), skill, lookup.getEndpoint());
+
+			if (result == null)
+			{
+				log.warn("unable to look up skill {} for {}: not found", skill, search);
+				return;
+			}
+
 			final Skill hiscoreSkill = result.getSkill();
 
 			final String response = new ChatMessageBuilder()
@@ -340,19 +553,121 @@ public class ChatCommandsPlugin extends Plugin
 		}
 	}
 
-	/**
-	 * Looks up the quantities of clues completed
-	 * for the requested clue-level (no arg if requesting total)
-	 * easy, medium, hard, elite, master
-	 */
-	private void playerClueLookup(SetMessage setMessage, String search)
+	private void combatLevelLookup(SetMessage setMessage, String message)
 	{
-		final HiscoreLookup lookup = getCorrectLookupFor(setMessage);
+		if (!config.lvl())
+		{
+			return;
+		}
+
+		ChatMessageType type = setMessage.getType();
+
+		String player;
+		if (type == ChatMessageType.PRIVATE_MESSAGE_SENT)
+		{
+			player = client.getLocalPlayer().getName();
+		}
+		else
+		{
+			player = sanitize(setMessage.getName());
+		}
+
+		try
+		{
+			HiscoreResult playerStats = hiscoreClient.lookup(player);
+
+			if (playerStats == null)
+			{
+				log.warn("Error fetching hiscore data: not found");
+				return;
+			}
+
+			int attack = playerStats.getAttack().getLevel();
+			int strength = playerStats.getStrength().getLevel();
+			int defence = playerStats.getDefence().getLevel();
+			int hitpoints = playerStats.getHitpoints().getLevel();
+			int ranged = playerStats.getRanged().getLevel();
+			int prayer = playerStats.getPrayer().getLevel();
+			int magic = playerStats.getMagic().getLevel();
+			int combatLevel = Experience.getCombatLevel(attack, strength, defence, hitpoints, magic, ranged, prayer);
+
+			String response = new ChatMessageBuilder()
+				.append(ChatColorType.NORMAL)
+				.append("Combat Level: ")
+				.append(ChatColorType.HIGHLIGHT)
+				.append(String.valueOf(combatLevel))
+				.append(ChatColorType.NORMAL)
+				.append(" A: ")
+				.append(ChatColorType.HIGHLIGHT)
+				.append(String.valueOf(attack))
+				.append(ChatColorType.NORMAL)
+				.append(" S: ")
+				.append(ChatColorType.HIGHLIGHT)
+				.append(String.valueOf(strength))
+				.append(ChatColorType.NORMAL)
+				.append(" D: ")
+				.append(ChatColorType.HIGHLIGHT)
+				.append(String.valueOf(defence))
+				.append(ChatColorType.NORMAL)
+				.append(" H: ")
+				.append(ChatColorType.HIGHLIGHT)
+				.append(String.valueOf(hitpoints))
+				.append(ChatColorType.NORMAL)
+				.append(" R: ")
+				.append(ChatColorType.HIGHLIGHT)
+				.append(String.valueOf(ranged))
+				.append(ChatColorType.NORMAL)
+				.append(" P: ")
+				.append(ChatColorType.HIGHLIGHT)
+				.append(String.valueOf(prayer))
+				.append(ChatColorType.NORMAL)
+				.append(" M: ")
+				.append(ChatColorType.HIGHLIGHT)
+				.append(String.valueOf(magic))
+				.build();
+
+			log.debug("Setting response {}", response);
+			final MessageNode messageNode = setMessage.getMessageNode();
+			messageNode.setRuneLiteFormatMessage(response);
+			chatMessageManager.update(messageNode);
+			client.refreshChat();
+		}
+		catch (IOException ex)
+		{
+			log.warn("Error fetching hiscore data", ex);
+		}
+	}
+
+	private void clueLookup(SetMessage setMessage, String message)
+	{
+		if (!config.clue())
+		{
+			return;
+		}
+
+		String search;
+
+		if (message.equalsIgnoreCase(CLUES_COMMAND_STRING))
+		{
+			search = "total";
+		}
+		else
+		{
+			search = message.substring(CLUES_COMMAND_STRING.length() + 1);
+		}
 
 		try
 		{
 			final Skill hiscoreSkill;
+			final HiscoreLookup lookup = getCorrectLookupFor(setMessage);
 			final HiscoreResult result = hiscoreClient.lookup(lookup.getName(), lookup.getEndpoint());
+
+			if (result == null)
+			{
+				log.warn("error looking up clues: not found");
+				return;
+			}
+
 			String level = search.toLowerCase();
 
 			switch (level)
@@ -415,6 +730,7 @@ public class ChatCommandsPlugin extends Plugin
 
 	/**
 	 * Gets correct lookup data for message
+	 *
 	 * @param setMessage chat message
 	 * @return hiscore lookup data
 	 */
@@ -426,7 +742,7 @@ public class ChatCommandsPlugin extends Plugin
 		if (setMessage.getType().equals(ChatMessageType.PRIVATE_MESSAGE_SENT))
 		{
 			player = client.getLocalPlayer().getName();
-			ironmanStatus = getHiscoreEndpointType();
+			ironmanStatus = hiscoreEndpoint;
 		}
 		else
 		{
@@ -435,7 +751,7 @@ public class ChatCommandsPlugin extends Plugin
 			if (player.equals(client.getLocalPlayer().getName()))
 			{
 				// Get ironman status from for the local player
-				ironmanStatus = getHiscoreEndpointType();
+				ironmanStatus = hiscoreEndpoint;
 			}
 			else
 			{
@@ -449,23 +765,31 @@ public class ChatCommandsPlugin extends Plugin
 
 	/**
 	 * Compares the names of the items in the list with the original input.
-	 * Returns the item if its name is equal to the original input or null
-	 * if it can't find the item.
+	 * Returns the item if its name is equal to the original input or the
+	 * shortest match if no exact match is found.
 	 *
-	 * @param items List of items.
+	 * @param items         List of items.
 	 * @param originalInput String with the original input.
 	 * @return Item which has a name equal to the original input.
 	 */
-	private Item retrieveFromList(List<Item> items, String originalInput)
+	private ItemPrice retrieveFromList(List<ItemPrice> items, String originalInput)
 	{
-		for (Item item : items)
+		ItemPrice shortest = null;
+		for (ItemPrice item : items)
 		{
 			if (item.getName().toLowerCase().equals(originalInput.toLowerCase()))
 			{
 				return item;
 			}
+
+			if (shortest == null || item.getName().length() < shortest.getName().length())
+			{
+				shortest = item;
+			}
 		}
-		return null;
+
+		// Take a guess
+		return shortest;
 	}
 
 	/**
@@ -483,29 +807,31 @@ public class ChatCommandsPlugin extends Plugin
 
 	/**
 	 * Looks up the ironman status of the local player. Does NOT work on other players.
+	 *
 	 * @return hiscore endpoint
 	 */
-	private HiscoreEndpoint getHiscoreEndpointType()
+	private HiscoreEndpoint getLocalHiscoreEndpointType()
 	{
 		return toEndPoint(client.getAccountType());
 	}
 
 	/**
 	 * Returns the ironman status based on the symbol in the name of the player.
+	 *
 	 * @param name player name
 	 * @return hiscore endpoint
 	 */
 	private static HiscoreEndpoint getHiscoreEndpointByName(final String name)
 	{
-		if (name.contains("<img=2>"))
+		if (name.contains(IconID.IRONMAN.toString()))
 		{
 			return toEndPoint(AccountType.IRONMAN);
 		}
-		else if (name.contains("<img=3>"))
+		else if (name.contains(IconID.ULTIMATE_IRONMAN.toString()))
 		{
 			return toEndPoint(AccountType.ULTIMATE_IRONMAN);
 		}
-		else if (name.contains("<img=10>"))
+		else if (name.contains(IconID.HARDCORE_IRONMAN.toString()))
 		{
 			return toEndPoint(AccountType.HARDCORE_IRONMAN);
 		}
@@ -517,6 +843,7 @@ public class ChatCommandsPlugin extends Plugin
 
 	/**
 	 * Converts account type to hiscore endpoint
+	 *
 	 * @param accountType account type
 	 * @return hiscore endpoint
 	 */
@@ -540,5 +867,114 @@ public class ChatCommandsPlugin extends Plugin
 	{
 		private final String name;
 		private final HiscoreEndpoint endpoint;
+	}
+
+	private static String longBossName(String boss)
+	{
+		switch (boss.toLowerCase())
+		{
+			case "corp":
+				return "Corporeal Beast";
+
+			case "jad":
+				return "TzTok-Jad";
+
+			case "kq":
+				return "Kalphite Queen";
+
+			case "chaos ele":
+				return "Chaos Elemental";
+
+			case "dusk":
+			case "dawn":
+			case "gargs":
+				return "Grotesque Guardians";
+
+			case "crazy arch":
+				return "Crazy Archaeologist";
+
+			case "deranged arch":
+				return "Deranged Archaeologist";
+
+			case "mole":
+				return "Giant Mole";
+
+			case "vetion":
+				return "Vet'ion";
+
+			case "vene":
+				return "Venenatis";
+
+			case "kbd":
+				return "King Black Dragon";
+
+			case "vork":
+				return "Vorkath";
+
+			case "sire":
+				return "Abyssal Sire";
+
+			case "smoke devil":
+			case "thermy":
+				return "Thermonuclear Smoke Devil";
+
+			case "cerb":
+				return "Cerberus";
+
+			case "zuk":
+			case "inferno":
+				return "TzKal-Zuk";
+
+			// gwd
+			case "sara":
+			case "saradomin":
+			case "zilyana":
+			case "zily":
+				return "Commander Zilyana";
+			case "zammy":
+			case "zamorak":
+			case "kril":
+			case "kril trutsaroth":
+				return "K'ril Tsutsaroth";
+			case "arma":
+			case "kree":
+			case "kreearra":
+			case "armadyl":
+				return "Kree'arra";
+			case "bando":
+			case "bandos":
+			case "graardor":
+				return "General Graardor";
+
+			// dks
+			case "supreme":
+				return "Dagannoth Supreme";
+			case "rex":
+				return "Dagannoth Rex";
+			case "prime":
+				return "Dagannoth Prime";
+
+			case "wt":
+				return "Wintertodt";
+			case "barrows":
+				return "Barrows Chests";
+
+			case "cox":
+			case "xeric":
+			case "chambers":
+			case "olm":
+			case "raids":
+				return "Chambers of Xeric";
+
+			case "tob":
+			case "theatre":
+			case "verzik":
+			case "verzik vitur":
+			case "raids 2":
+				return "Theatre of Blood";
+
+			default:
+				return boss;
+		}
 	}
 }

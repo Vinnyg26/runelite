@@ -43,7 +43,6 @@ import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.client.game.ItemManager;
 import static net.runelite.client.plugins.grounditems.config.ItemHighlightMode.MENU;
 import net.runelite.client.plugins.grounditems.config.PriceDisplayMode;
 import net.runelite.client.ui.overlay.Overlay;
@@ -53,7 +52,6 @@ import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.client.ui.overlay.components.BackgroundComponent;
 import net.runelite.client.ui.overlay.components.TextComponent;
 import net.runelite.client.util.StackFormatter;
-import net.runelite.http.api.item.ItemPrice;
 
 public class GroundItemsOverlay extends Overlay
 {
@@ -76,23 +74,21 @@ public class GroundItemsOverlay extends Overlay
 	private final BackgroundComponent backgroundComponent = new BackgroundComponent();
 	private final TextComponent textComponent = new TextComponent();
 	private final Map<WorldPoint, Integer> offsetMap = new HashMap<>();
-	private final ItemManager itemManager;
 
 	@Inject
-	private GroundItemsOverlay(Client client, GroundItemsPlugin plugin, GroundItemsConfig config, ItemManager itemManager)
+	private GroundItemsOverlay(Client client, GroundItemsPlugin plugin, GroundItemsConfig config)
 	{
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.ABOVE_SCENE);
 		this.client = client;
 		this.plugin = plugin;
 		this.config = config;
-		this.itemManager = itemManager;
 	}
 
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		final boolean dontShowOverlay = config.itemHighlightMode() == MENU && !plugin.isHotKeyPressed();
+		final boolean dontShowOverlay = (config.itemHighlightMode() == MENU || plugin.isHideAll()) && !plugin.isHotKeyPressed();
 
 		if (dontShowOverlay && !config.highlightTiles())
 		{
@@ -106,8 +102,6 @@ public class GroundItemsOverlay extends Overlay
 		{
 			return null;
 		}
-
-		plugin.checkItems();
 
 		offsetMap.clear();
 		final LocalPoint localLocation = player.getLocalLocation();
@@ -168,21 +162,16 @@ public class GroundItemsOverlay extends Overlay
 		plugin.setHiddenBoxBounds(null);
 		plugin.setHighlightBoxBounds(null);
 
+		final boolean onlyShowLoot = config.onlyShowLoot();
+
 		for (GroundItem item : groundItemList)
 		{
 			final LocalPoint groundPoint = LocalPoint.fromWorld(client, item.getLocation());
 
-			if (groundPoint == null || localLocation.distanceTo(groundPoint) > MAX_DISTANCE)
+			if (groundPoint == null || localLocation.distanceTo(groundPoint) > MAX_DISTANCE
+				|| (onlyShowLoot && !item.isMine()))
 			{
 				continue;
-			}
-
-			// Update GE price for item
-			final ItemPrice itemPrice = itemManager.getItemPrice(item.getItemId());
-
-			if (itemPrice != null && itemPrice.getPrice() > 0)
-			{
-				item.setGePrice(itemPrice.getPrice() * item.getQuantity());
 			}
 
 			final Color highlighted = plugin.getHighlighted(item.getName(), item.getGePrice(), item.getHaPrice());

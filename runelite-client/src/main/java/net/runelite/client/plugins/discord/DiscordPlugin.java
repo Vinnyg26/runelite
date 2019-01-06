@@ -25,7 +25,6 @@
  */
 package net.runelite.client.plugins.discord;
 
-import com.google.common.eventbus.Subscribe;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import java.awt.image.BufferedImage;
@@ -33,24 +32,24 @@ import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
-import javax.imageio.ImageIO;
 import net.runelite.api.Client;
-import static net.runelite.api.Constants.CHUNK_SIZE;
 import net.runelite.api.GameState;
 import net.runelite.api.Skill;
 import net.runelite.api.WorldType;
-import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ConfigChanged;
 import net.runelite.api.events.ExperienceChanged;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.VarbitChanged;
 import net.runelite.client.RuneLiteProperties;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.task.Schedule;
+import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
-import net.runelite.client.ui.TitleToolbar;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 
 @PluginDescriptor(
@@ -67,7 +66,7 @@ public class DiscordPlugin extends Plugin
 	private DiscordConfig config;
 
 	@Inject
-	private TitleToolbar titleToolbar;
+	private ClientToolbar clientToolbar;
 
 	@Inject
 	private RuneLiteProperties properties;
@@ -88,26 +87,23 @@ public class DiscordPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
-		BufferedImage icon;
-		synchronized (ImageIO.class)
-		{
-			icon = ImageIO.read(getClass().getResourceAsStream("discord.png"));
-		}
+		final BufferedImage icon = ImageUtil.getResourceStreamFromClass(getClass(), "discord.png");
 
 		discordButton = NavigationButton.builder()
+			.tab(false)
 			.tooltip("Join Discord")
 			.icon(icon)
 			.onClick(() -> LinkBrowser.browse(properties.getDiscordInvite()))
 			.build();
 
-		titleToolbar.addNavigation(discordButton);
+		clientToolbar.addNavigation(discordButton);
 		checkForGameStateUpdate();
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
-		titleToolbar.removeNavigation(discordButton);
+		clientToolbar.removeNavigation(discordButton);
 		discordState.reset();
 	}
 
@@ -136,7 +132,7 @@ public class DiscordPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void configChanged(ConfigChanged event)
+	public void onConfigChanged(ConfigChanged event)
 	{
 		if (event.getGroup().equalsIgnoreCase("discord"))
 		{
@@ -146,7 +142,7 @@ public class DiscordPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onXpChanged(ExperienceChanged event)
+	public void onExperienceChanged(ExperienceChanged event)
 	{
 		final int exp = client.getSkillExperience(event.getSkill());
 		final Integer previous = skillExp.put(event.getSkill(), exp);
@@ -159,6 +155,22 @@ public class DiscordPlugin extends Plugin
 		final DiscordGameEventType discordGameEventType = DiscordGameEventType.fromSkill(event.getSkill());
 
 		if (discordGameEventType != null && config.showSkillingActivity())
+		{
+			discordState.triggerEvent(discordGameEventType);
+		}
+	}
+
+	@Subscribe
+	public void onVarbitChanged(VarbitChanged event)
+	{
+		if (!config.showRaidingActivity())
+		{
+			return;
+		}
+
+		final DiscordGameEventType discordGameEventType = DiscordGameEventType.fromVarbit(client);
+
+		if (discordGameEventType != null)
 		{
 			discordState.triggerEvent(discordGameEventType);
 		}
@@ -189,7 +201,7 @@ public class DiscordPlugin extends Plugin
 			return;
 		}
 
-		final int playerRegionID = getCurrentRegion();
+		final int playerRegionID = WorldPoint.fromLocalInstance(client, client.getLocalPlayer().getLocalLocation()).getRegionID();
 
 		if (playerRegionID == 0)
 		{
@@ -241,26 +253,4 @@ public class DiscordPlugin extends Plugin
 
 		return false;
 	}
-
-	private int getCurrentRegion()
-	{
-		if (!client.isInInstancedRegion())
-		{
-			return client.getLocalPlayer().getWorldLocation().getRegionID();
-		}
-
-		// get chunk data of current chunk
-		final LocalPoint localPoint = client.getLocalPlayer().getLocalLocation();
-		final int[][][] instanceTemplateChunks = client.getInstanceTemplateChunks();
-		final int z = client.getPlane();
-		final int chunkData = instanceTemplateChunks[z][localPoint.getRegionX() / CHUNK_SIZE][localPoint.getRegionY() / CHUNK_SIZE];
-
-		// extract world point from chunk data
-		final int chunkY = (chunkData >> 3 & 0x7FF) * CHUNK_SIZE;
-		final int chunkX = (chunkData >> 14 & 0x3FF) * CHUNK_SIZE;
-
-		final WorldPoint worldPoint = new WorldPoint(chunkX, chunkY, z);
-		return worldPoint.getRegionID();
-	}
-
 }

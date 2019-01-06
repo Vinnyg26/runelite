@@ -43,6 +43,17 @@ class GroundItem
 	private int gePrice;
 	private int offset;
 	private boolean tradeable;
+	private boolean isMine;
+
+	int getHaPrice()
+	{
+		return haPrice * quantity;
+	}
+
+	int getGePrice()
+	{
+		return gePrice * quantity;
+	}
 
 	@Value
 	static class GroundItemKey
