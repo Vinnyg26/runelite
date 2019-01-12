@@ -105,6 +105,9 @@ public class AlchemicalHydraPlugin extends Plugin
     public static final int HYDRA_BLACK_RANGE = 8256;
     public static final int HYDRA_BLACK_MAGE = 8255;
 
+    public static final int HYDRA_RANGE_PROJ = 1663;
+    public static final int HYDRA_MAGE_PROJ = 1662;
+
     @Override
     protected void startUp() throws Exception
     {
@@ -320,35 +323,36 @@ public class AlchemicalHydraPlugin extends Plugin
 
             int animationId = hydra.getNpc().getAnimation();
 
-            if (hydra.isTakenDamageRecently() &&
-                    tickCounter >= hydra.getNextAttackTick() + 4)
+//            if (hydra.isTakenDamageRecently() &&
+//                    tickCounter >= hydra.getNextAttackTick() + 4)
+//            {
+//                // The gorilla was flinched, so its next attack gets delayed
+//                hydra.setNextAttackTick(tickCounter + AlchemicalHydra.ATTACK_RATE / 2);
+//                hydra.setInitiatedCombat(true);
+//
+//                if (mp != null && mp.getLastWorldArea() != null &&
+//                        !hydra.getNpc().getWorldArea().isInMeleeDistance(mp.getLastWorldArea()) &&
+//                        !hydra.getNpc().getWorldArea().intersectsWith(mp.getLastWorldArea()))
+//                {
+//                    // Gorillas stop meleeing when they get flinched
+//                    // and the target isn't in melee distance
+//                    hydra.setNextPosibleAttackStyles(hydra
+//                            .getNextPosibleAttackStyles()
+//                            .stream()
+//                            .filter(x -> x != AlchemicalHydra.AttackStyle.MELEE)
+//                            .collect(Collectors.toList()));
+//                    checkGorillaAttackStyleSwitch(hydra, AlchemicalHydra.AttackStyle.MELEE,
+//                            getProtectedStyle(interacting));
+//                }
+//            }
+//            else
+            if (animationId != hydra.getLastTickAnimation())
             {
-                // The gorilla was flinched, so its next attack gets delayed
-                hydra.setNextAttackTick(tickCounter + AlchemicalHydra.ATTACK_RATE / 2);
-                hydra.setInitiatedCombat(true);
-
-                if (mp != null && mp.getLastWorldArea() != null &&
-                        !hydra.getNpc().getWorldArea().isInMeleeDistance(mp.getLastWorldArea()) &&
-                        !hydra.getNpc().getWorldArea().intersectsWith(mp.getLastWorldArea()))
-                {
-                    // Gorillas stop meleeing when they get flinched
-                    // and the target isn't in melee distance
-                    hydra.setNextPosibleAttackStyles(hydra
-                            .getNextPosibleAttackStyles()
-                            .stream()
-                            .filter(x -> x != AlchemicalHydra.AttackStyle.MELEE)
-                            .collect(Collectors.toList()));
-                    checkGorillaAttackStyleSwitch(hydra, AlchemicalHydra.AttackStyle.MELEE,
-                            getProtectedStyle(interacting));
-                }
-            }
-            else if (animationId != hydra.getLastTickAnimation())
-            {
-                if (animationId == HYDRA_GREEN_MAGE || animationId == HYDRA_BLUE_MAGE || animationId == HYDRA_RED_MAGE || animationId == HYDRA_BLACK_MAGE)
+                if (animationId == HYDRA_GREEN_MAGE || animationId == HYDRA_BLUE_MAGE || animationId == HYDRA_RED_MAGE || animationId == HYDRA_BLACK_MAGE || hydra.getRecentProjectileId() == HYDRA_MAGE_PROJ)
                 {
                     onGorillaAttack(hydra, AlchemicalHydra.AttackStyle.MAGIC);
                 }
-                else if (animationId == HYDRA_GREEN_RANGE || animationId == HYDRA_BLUE_RANGE || animationId == HYDRA_RED_RANGE || animationId == HYDRA_BLACK_RANGE)
+                else if (animationId == HYDRA_GREEN_RANGE || animationId == HYDRA_BLUE_RANGE || animationId == HYDRA_RED_RANGE || animationId == HYDRA_BLACK_RANGE || hydra.getRecentProjectileId() == HYDRA_RANGE_PROJ)
                 {
                     onGorillaAttack(hydra, AlchemicalHydra.AttackStyle.RANGED);
                 }
