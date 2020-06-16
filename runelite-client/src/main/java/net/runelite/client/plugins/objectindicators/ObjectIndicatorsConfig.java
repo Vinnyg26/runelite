@@ -26,6 +26,7 @@
 package net.runelite.client.plugins.objectindicators;
 
 import java.awt.Color;
+import net.runelite.client.config.Alpha;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
@@ -33,6 +34,7 @@ import net.runelite.client.config.ConfigItem;
 @ConfigGroup("objectindicators")
 public interface ObjectIndicatorsConfig extends Config
 {
+	@Alpha
 	@ConfigItem(
 		keyName = "markerColor",
 		name = "Marker color",
@@ -41,5 +43,15 @@ public interface ObjectIndicatorsConfig extends Config
 	default Color markerColor()
 	{
 		return Color.YELLOW;
+	}
+
+	@ConfigItem(
+		keyName = "rememberObjectColors",
+		name = "Remember color per object",
+		description = "Color objects using the color from time of marking"
+	)
+	default boolean rememberObjectColors()
+	{
+		return false;
 	}
 }

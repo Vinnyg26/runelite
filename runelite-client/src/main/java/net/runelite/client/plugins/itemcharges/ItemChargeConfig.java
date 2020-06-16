@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017, Devin French <https://github.com/devinfrench>
+ * Copyright (c) 2019, Aleios <https://github.com/aleios>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,10 +29,25 @@ import java.awt.Color;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.ConfigSection;
 
 @ConfigGroup("itemCharge")
 public interface ItemChargeConfig extends Config
 {
+	@ConfigSection(
+		name = "Charge Settings",
+		description = "Configuration for which charges should be displayed",
+		position = 98
+	)
+	String chargesSection = "charges";
+
+	@ConfigSection(
+		name = "Notification Settings",
+		description = "Configuration for notifications",
+		position = 99
+	)
+	String notificationSection = "notifications";
+
 	@ConfigItem(
 		keyName = "veryLowWarningColor",
 		name = "Very Low Warning Color",
@@ -80,7 +96,8 @@ public interface ItemChargeConfig extends Config
 		keyName = "showTeleportCharges",
 		name = "Show Teleport Charges",
 		description = "Configures if teleport item count is shown",
-		position = 5
+		position = 5,
+		section = chargesSection
 	)
 	default boolean showTeleportCharges()
 	{
@@ -91,7 +108,8 @@ public interface ItemChargeConfig extends Config
 		keyName = "showDodgyCount",
 		name = "Dodgy Necklace Count",
 		description = "Configures if Dodgy Necklace charge count is shown",
-		position = 6
+		position = 6,
+		section = chargesSection
 	)
 	default boolean showDodgyCount()
 	{
@@ -102,7 +120,8 @@ public interface ItemChargeConfig extends Config
 		keyName = "dodgyNotification",
 		name = "Dodgy Necklace Notification",
 		description = "Configures if the dodgy necklace breaking notification is shown",
-		position = 7
+		position = 7,
+		section = notificationSection
 	)
 	default boolean dodgyNotification()
 	{
@@ -131,7 +150,8 @@ public interface ItemChargeConfig extends Config
 		keyName = "showImpCharges",
 		name = "Show Imp-in-a-box charges",
 		description = "Configures if imp-in-a-box item charges is shown",
-		position = 8
+		position = 8,
+		section = chargesSection
 	)
 	default boolean showImpCharges()
 	{
@@ -142,7 +162,8 @@ public interface ItemChargeConfig extends Config
 		keyName = "showFungicideCharges",
 		name = "Show Fungicide Charges",
 		description = "Configures if fungicide item charges is shown",
-		position = 9
+		position = 9,
+		section = chargesSection
 	)
 	default boolean showFungicideCharges()
 	{
@@ -153,7 +174,8 @@ public interface ItemChargeConfig extends Config
 		keyName = "showWateringCanCharges",
 		name = "Show Watering Can Charges",
 		description = "Configures if watering can item charge is shown",
-		position = 10
+		position = 10,
+		section = chargesSection
 	)
 	default boolean showWateringCanCharges()
 	{
@@ -164,7 +186,8 @@ public interface ItemChargeConfig extends Config
 		keyName = "showWaterskinCharges",
 		name = "Show Waterskin Charges",
 		description = "Configures if waterskin item charge is shown",
-		position = 11
+		position = 11,
+		section = chargesSection
 	)
 	default boolean showWaterskinCharges()
 	{
@@ -172,10 +195,11 @@ public interface ItemChargeConfig extends Config
 	}
 
 	@ConfigItem(
-			keyName = "showBellowCharges",
-			name = "Show Bellow Charges",
-			description = "Configures if ogre bellow item charge is shown",
-			position = 12
+		keyName = "showBellowCharges",
+		name = "Show Bellow Charges",
+		description = "Configures if ogre bellow item charge is shown",
+		position = 12,
+		section = chargesSection
 	)
 	default boolean showBellowCharges()
 	{
@@ -183,10 +207,35 @@ public interface ItemChargeConfig extends Config
 	}
 
 	@ConfigItem(
-			keyName = "showAbyssalBraceletCharges",
-			name = "Show Abyssal Bracelet Charges",
-			description = "Configures if abyssal bracelet item charge is shown",
-			position = 13
+		keyName = "showBasketCharges",
+		name = "Show Basket Charges",
+		description = "Configures if fruit basket item charge is shown",
+		position = 13,
+		section = chargesSection
+	)
+	default boolean showBasketCharges()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "showSackCharges",
+		name = "Show Sack Charges",
+		description = "Configures if sack item charge is shown",
+		position = 14,
+		section = chargesSection
+	)
+	default boolean showSackCharges()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "showAbyssalBraceletCharges",
+		name = "Show Abyssal Bracelet Charges",
+		description = "Configures if abyssal bracelet item charge is shown",
+		position = 15,
+		section = chargesSection
 	)
 	default boolean showAbyssalBraceletCharges()
 	{
@@ -194,12 +243,210 @@ public interface ItemChargeConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showAmuletOfChemistryCharges",
+		name = "Show Amulet of Chemistry Charges",
+		description = "Configures if amulet of chemistry item charge is shown",
+		position = 16,
+		section = chargesSection
+	)
+	default boolean showAmuletOfChemistryCharges()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "amuletOfChemistry",
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default int amuletOfChemistry()
+	{
+		return -1;
+	}
+
+	@ConfigItem(
+		keyName = "amuletOfChemistry",
+		name = "",
+		description = ""
+	)
+	void amuletOfChemistry(int amuletOfChemistry);
+
+	@ConfigItem(
+		keyName = "showAmuletOfBountyCharges",
+		name = "Show Amulet of Bounty Charges",
+		description = "Configures if amulet of bounty item charge is shown",
+		position = 17,
+		section = chargesSection
+	)
+	default boolean showAmuletOfBountyCharges()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "amuletOfBounty",
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default int amuletOfBounty()
+	{
+		return -1;
+	}
+
+	@ConfigItem(
+		keyName = "amuletOfBounty",
+		name = "",
+		description = ""
+	)
+	void amuletOfBounty(int amuletOfBounty);
+
+	@ConfigItem(
 		keyName = "recoilNotification",
 		name = "Ring of Recoil Notification",
 		description = "Configures if the ring of recoil breaking notification is shown",
-		position = 14
+		position = 18,
+		section = notificationSection
 	)
 	default boolean recoilNotification()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "showBindingNecklaceCharges",
+		name = "Show Binding Necklace Charges",
+		description = "Configures if binding necklace item charge is shown",
+		position = 19,
+		section = chargesSection
+	)
+	default boolean showBindingNecklaceCharges()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "bindingNecklace",
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default int bindingNecklace()
+	{
+		return -1;
+	}
+
+	@ConfigItem(
+		keyName = "bindingNecklace",
+		name = "",
+		description = ""
+	)
+	void bindingNecklace(int bindingNecklace);
+
+	@ConfigItem(
+		keyName = "bindingNotification",
+		name = "Binding Necklace Notification",
+		description = "Configures if the binding necklace breaking notification is shown",
+		position = 20,
+		section = notificationSection
+	)
+	default boolean bindingNotification()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "showExplorerRingCharges",
+		name = "Show Explorer's Ring Alch Charges",
+		description = "Configures if explorer's ring alchemy charges are shown",
+		position = 21,
+		section = chargesSection
+	)
+	default boolean showExplorerRingCharges()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "explorerRing",
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default int explorerRing()
+	{
+		return -1;
+	}
+
+	@ConfigItem(
+		keyName = "explorerRing",
+		name = "",
+		description = ""
+	)
+	void explorerRing(int explorerRing);
+
+	@ConfigItem(
+		keyName = "showRingOfForgingCount",
+		name = "Show Ring of Forging Charges",
+		description = "Configures if the Ring of Forging charge count is shown",
+		position = 22,
+		section = chargesSection
+	)
+	default boolean showRingOfForgingCount()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ringOfForging",
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default int ringOfForging()
+	{
+		return -1;
+	}
+
+	@ConfigItem(
+		keyName = "ringOfForging",
+		name = "",
+		description = ""
+	)
+	void ringOfForging(int ringOfForging);
+
+	@ConfigItem(
+		keyName = "ringOfForgingNotification",
+		name = "Ring of Forging Notification",
+		description = "Configures if the Ring of Forging breaking notification is enabled",
+		position = 23,
+		section = notificationSection
+	)
+	default boolean ringOfForgingNotification()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "showInfoboxes",
+		name = "Show Infoboxes",
+		description = "Configures whether to show an infobox equipped charge items",
+		position = 24
+	)
+	default boolean showInfoboxes()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "showPotionDoseCount",
+		name = "Show Potion Doses",
+		description = "Configures if potion doses are shown",
+		position = 25,
+		section = chargesSection
+	)
+	default boolean showPotionDoseCount()
 	{
 		return false;
 	}

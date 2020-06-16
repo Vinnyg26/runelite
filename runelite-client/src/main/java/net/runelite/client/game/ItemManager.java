@@ -38,12 +38,14 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.Constants;
 import static net.runelite.api.Constants.CLIENT_DEFAULT_ZOOM;
 import net.runelite.api.GameState;
 import net.runelite.api.ItemComposition;
@@ -54,6 +56,7 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.PostItemComposition;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.http.api.item.ItemClient;
 import net.runelite.http.api.item.ItemPrice;
 import net.runelite.http.api.item.ItemStats;
@@ -82,9 +85,9 @@ public class ItemManager
 	private final ScheduledExecutorService scheduledExecutorService;
 	private final ClientThread clientThread;
 
-	private final ItemClient itemClient = new ItemClient();
+	private final ItemClient itemClient;
 	private Map<Integer, ItemPrice> itemPrices = Collections.emptyMap();
-	private Map<String, ItemStats> itemStats = Collections.emptyMap();
+	private Map<Integer, ItemStats> itemStats = Collections.emptyMap();
 	private final LoadingCache<ImageKey, AsyncBufferedImage> itemImages;
 	private final LoadingCache<Integer, ItemComposition> itemCompositions;
 	private final LoadingCache<OutlineKey, BufferedImage> itemOutlines;
@@ -142,6 +145,12 @@ public class ItemManager
 		put(GRACEFUL_LEGS_21072, GRACEFUL_LEGS_21070).
 		put(GRACEFUL_GLOVES_21075, GRACEFUL_GLOVES_21073).
 		put(GRACEFUL_BOOTS_21078, GRACEFUL_BOOTS_21076).
+		put(GRACEFUL_HOOD_24745, GRACEFUL_HOOD_24743).
+		put(GRACEFUL_CAPE_24748, GRACEFUL_CAPE_24746).
+		put(GRACEFUL_TOP_24751, GRACEFUL_TOP_24749).
+		put(GRACEFUL_LEGS_24754, GRACEFUL_LEGS_24752).
+		put(GRACEFUL_GLOVES_24757, GRACEFUL_GLOVES_24755).
+		put(GRACEFUL_BOOTS_24760, GRACEFUL_BOOTS_24758).
 
 		put(MAX_CAPE_13342, MAX_CAPE).
 
@@ -153,11 +162,13 @@ public class ItemManager
 		build();
 
 	@Inject
-	public ItemManager(Client client, ScheduledExecutorService executor, ClientThread clientThread)
+	public ItemManager(Client client, ScheduledExecutorService executor, ClientThread clientThread,
+		ItemClient itemClient)
 	{
 		this.client = client;
 		this.scheduledExecutorService = executor;
 		this.clientThread = clientThread;
+		this.itemClient = itemClient;
 
 		scheduledExecutorService.scheduleWithFixedDelay(this::loadPrices, 0, 30, TimeUnit.MINUTES);
 		scheduledExecutorService.submit(this::loadStats);
@@ -226,7 +237,7 @@ public class ItemManager
 	{
 		try
 		{
-			final Map<String, ItemStats> stats = itemClient.getStats();
+			final Map<Integer, ItemStats> stats = itemClient.getStats();
 			if (stats != null)
 			{
 				itemStats = ImmutableMap.copyOf(stats);
@@ -257,12 +268,33 @@ public class ItemManager
 	}
 
 	/**
+	 * Invalidates internal item manager item composition cache (but not client item composition cache)
+	 * @see Client#getItemCompositionCache()
+	 */
+	public void invalidateItemCompositionCache()
+	{
+		itemCompositions.invalidateAll();
+	}
+
+	/**
 	 * Look up an item's price
 	 *
 	 * @param itemID item id
 	 * @return item price
 	 */
 	public int getItemPrice(int itemID)
+	{
+		return getItemPrice(itemID, false);
+	}
+
+	/**
+	 * Look up an item's price
+	 *
+	 * @param itemID item id
+	 * @param ignoreUntradeableMap should the price returned ignore the {@link UntradeableItemMapping}
+	 * @return item price
+	 */
+	public int getItemPrice(int itemID, boolean ignoreUntradeableMap)
 	{
 		if (itemID == ItemID.COINS_995)
 		{
@@ -273,10 +305,20 @@ public class ItemManager
 			return 1000;
 		}
 
-		UntradeableItemMapping p = UntradeableItemMapping.map(ItemVariationMapping.map(itemID));
-		if (p != null)
+		ItemComposition itemComposition = getItemComposition(itemID);
+		if (itemComposition.getNote() != -1)
 		{
-			return getItemPrice(p.getPriceID()) * p.getQuantity();
+			itemID = itemComposition.getLinkedNoteId();
+		}
+		itemID = WORN_ITEMS.getOrDefault(itemID, itemID);
+
+		if (!ignoreUntradeableMap)
+		{
+			UntradeableItemMapping p = UntradeableItemMapping.map(ItemVariationMapping.map(itemID));
+			if (p != null)
+			{
+				return getItemPrice(p.getPriceID()) * p.getQuantity();
+			}
 		}
 
 		int price = 0;
@@ -298,16 +340,16 @@ public class ItemManager
 	 * @return item stats
 	 */
 	@Nullable
-	public ItemStats getItemStats(int itemId)
+	public ItemStats getItemStats(int itemId, boolean allowNote)
 	{
 		ItemComposition itemComposition = getItemComposition(itemId);
 
-		if (itemComposition == null || itemComposition.getName() == null)
+		if (itemComposition == null || itemComposition.getName() == null || (!allowNote && itemComposition.getNote() != -1))
 		{
 			return null;
 		}
 
-		return itemStats.get(itemComposition.getName());
+		return itemStats.get(canonicalize(itemId));
 	}
 
 	/**
@@ -338,6 +380,7 @@ public class ItemManager
 	 * @param itemId item id
 	 * @return item composition
 	 */
+	@Nonnull
 	public ItemComposition getItemComposition(int itemId)
 	{
 		assert client.isClientThread() : "getItemComposition must be called on client thread";
@@ -372,7 +415,7 @@ public class ItemManager
 	 */
 	private AsyncBufferedImage loadImage(int itemId, int quantity, boolean stackable)
 	{
-		AsyncBufferedImage img = new AsyncBufferedImage(36, 32, BufferedImage.TYPE_INT_ARGB);
+		AsyncBufferedImage img = new AsyncBufferedImage(Constants.ITEM_SPRITE_WIDTH, Constants.ITEM_SPRITE_HEIGHT, BufferedImage.TYPE_INT_ARGB);
 		clientThread.invoke(() ->
 		{
 			if (client.getGameState().ordinal() < GameState.LOGIN_SCREEN.ordinal())
@@ -386,7 +429,7 @@ public class ItemManager
 				return false;
 			}
 			sprite.toBufferedImage(img);
-			img.changed();
+			img.loaded();
 			return true;
 		});
 		return img;

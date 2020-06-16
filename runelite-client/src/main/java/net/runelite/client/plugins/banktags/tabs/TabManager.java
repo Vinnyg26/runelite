@@ -38,14 +38,13 @@ import net.runelite.api.ItemID;
 import net.runelite.client.config.ConfigManager;
 import static net.runelite.client.plugins.banktags.BankTagsPlugin.CONFIG_GROUP;
 import static net.runelite.client.plugins.banktags.BankTagsPlugin.ICON_SEARCH;
+import static net.runelite.client.plugins.banktags.BankTagsPlugin.TAG_TABS_CONFIG;
 import net.runelite.client.util.Text;
 import org.apache.commons.lang3.math.NumberUtils;
 
 @Singleton
 class TabManager
 {
-	private static final String TAG_TABS_CONFIG = "tagtabs";
-
 	@Getter
 	private final List<TagTab> tabs = new ArrayList<>();
 	private final ConfigManager configManager;
@@ -96,7 +95,7 @@ class TabManager
 		return tagTab;
 	}
 
-	void move(String tagToMove, String tagDestination)
+	void swap(String tagToMove, String tagDestination)
 	{
 		tagToMove = Text.standardize(tagToMove);
 		tagDestination = Text.standardize(tagDestination);
@@ -104,6 +103,17 @@ class TabManager
 		if (contains(tagToMove) && contains(tagDestination))
 		{
 			Collections.swap(tabs, indexOf(tagToMove), indexOf(tagDestination));
+		}
+	}
+
+	void insert(String tagToMove, String tagDestination)
+	{
+		tagToMove = Text.standardize(tagToMove);
+		tagDestination = Text.standardize(tagDestination);
+
+		if (contains(tagToMove) && contains(tagDestination))
+		{
+			tabs.add(indexOf(tagDestination), tabs.remove(indexOf(tagToMove)));
 		}
 	}
 
@@ -115,6 +125,7 @@ class TabManager
 		{
 			tagTab.setHidden(true);
 			tabs.remove(tagTab);
+			removeIcon(tag);
 		}
 	}
 
@@ -122,6 +133,16 @@ class TabManager
 	{
 		String tags = Text.toCSV(tabs.stream().map(TagTab::getTag).collect(Collectors.toList()));
 		configManager.setConfiguration(CONFIG_GROUP, TAG_TABS_CONFIG, tags);
+	}
+
+	void removeIcon(final String tag)
+	{
+		configManager.unsetConfiguration(CONFIG_GROUP, ICON_SEARCH + Text.standardize(tag));
+	}
+
+	void setIcon(final String tag, final String icon)
+	{
+		configManager.setConfiguration(CONFIG_GROUP, ICON_SEARCH + Text.standardize(tag), icon);
 	}
 
 	int size()

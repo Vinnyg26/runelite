@@ -31,18 +31,19 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.time.Instant;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.UUID;
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Singleton;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.events.SessionClose;
-import net.runelite.api.events.SessionOpen;
-import net.runelite.client.RuneLite;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.SessionClose;
+import net.runelite.client.events.SessionOpen;
 import net.runelite.client.util.LinkBrowser;
+import net.runelite.client.ws.WSClient;
 import net.runelite.http.api.account.AccountClient;
 import net.runelite.http.api.account.OAuthResponse;
 import net.runelite.http.api.ws.messages.LoginResponse;
@@ -51,29 +52,32 @@ import net.runelite.http.api.ws.messages.LoginResponse;
 @Slf4j
 public class SessionManager
 {
-	private static final File SESSION_FILE = new File(RuneLite.RUNELITE_DIR, "session");
-	private WSClient wsclient;
-
 	@Getter
 	private AccountSession accountSession;
 
 	private final EventBus eventBus;
-	private ConfigManager configManager;
-	private ScheduledExecutorService executor;
-	private final AccountClient loginClient = new AccountClient();
+	private final ConfigManager configManager;
+	private final WSClient wsClient;
+	private final File sessionFile;
 
 	@Inject
-	public SessionManager(ConfigManager configManager, EventBus eventBus, ScheduledExecutorService executor)
+	private SessionManager(
+		@Named("sessionfile") File sessionfile,
+		ConfigManager configManager,
+		EventBus eventBus,
+		WSClient wsClient)
 	{
 		this.configManager = configManager;
 		this.eventBus = eventBus;
-		this.executor = executor;
+		this.wsClient = wsClient;
+		this.sessionFile = sessionfile;
+
 		eventBus.register(this);
 	}
 
 	public void loadSession()
 	{
-		if (!SESSION_FILE.exists())
+		if (!sessionFile.exists())
 		{
 			log.info("No session file exists");
 			return;
@@ -81,7 +85,7 @@ public class SessionManager
 
 		AccountSession session;
 
-		try (FileInputStream in = new FileInputStream(SESSION_FILE))
+		try (FileInputStream in = new FileInputStream(sessionFile))
 		{
 			session = new Gson().fromJson(new InputStreamReader(in), AccountSession.class);
 
@@ -95,7 +99,7 @@ public class SessionManager
 
 		// Check if session is still valid
 		AccountClient accountClient = new AccountClient(session.getUuid());
-		if (!accountClient.sesssionCheck())
+		if (!accountClient.sessionCheck())
 		{
 			log.debug("Loaded session {} is invalid", session.getUuid());
 			return;
@@ -111,11 +115,11 @@ public class SessionManager
 			return;
 		}
 
-		try (FileWriter fw = new FileWriter(SESSION_FILE))
+		try (FileWriter fw = new FileWriter(sessionFile))
 		{
 			new Gson().toJson(accountSession, fw);
 
-			log.debug("Saved session to {}", SESSION_FILE);
+			log.debug("Saved session to {}", sessionFile);
 		}
 		catch (IOException ex)
 		{
@@ -125,7 +129,7 @@ public class SessionManager
 
 	private void deleteSession()
 	{
-		SESSION_FILE.delete();
+		sessionFile.delete();
 	}
 
 	/**
@@ -136,19 +140,10 @@ public class SessionManager
 	 */
 	private void openSession(AccountSession session, boolean openSocket)
 	{
-		// If the ws session already exists, don't need to do anything
+		// Change session on the websocket
 		if (openSocket)
 		{
-			if (wsclient == null || !wsclient.checkSession(session))
-			{
-				if (wsclient != null)
-				{
-					wsclient.close();
-				}
-
-				wsclient = new WSClient(eventBus, executor, session);
-				wsclient.connect();
-			}
+			wsClient.changeSession(session.getUuid());
 		}
 
 		accountSession = session;
@@ -165,11 +160,7 @@ public class SessionManager
 
 	private void closeSession()
 	{
-		if (wsclient != null)
-		{
-			wsclient.close();
-			wsclient = null;
-		}
+		wsClient.changeSession(null);
 
 		if (accountSession == null)
 		{
@@ -198,6 +189,10 @@ public class SessionManager
 
 	public void login()
 	{
+		// If a session is already open, use that id. Otherwise generate a new id.
+		UUID uuid = wsClient.getSessionId() != null ? wsClient.getSessionId() : UUID.randomUUID();
+		AccountClient loginClient = new AccountClient(uuid);
+
 		final OAuthResponse login;
 
 		try

@@ -52,6 +52,9 @@ class FarmingWorld
 		.thenComparing((FarmingPatch p) -> p.getRegion().getName())
 		.thenComparing(FarmingPatch::getName);
 
+	@Getter
+	private final FarmingRegion farmingGuildRegion;
+
 	FarmingWorld()
 	{
 		// Some of these patches get updated in multiple regions.
@@ -139,28 +142,28 @@ class FarmingWorld
 			new FarmingPatch("", Varbits.FARMING_4772, PatchImplementation.HERB)
 		));
 
-		add(new FarmingRegion("Kourend", 7222,
+		add(new FarmingRegion("Kourend", 6967,
 			new FarmingPatch("North East", Varbits.FARMING_4771, PatchImplementation.ALLOTMENT),
 			new FarmingPatch("South West", Varbits.FARMING_4772, PatchImplementation.ALLOTMENT),
 			new FarmingPatch("", Varbits.FARMING_4773, PatchImplementation.FLOWER),
 			new FarmingPatch("", Varbits.FARMING_4774, PatchImplementation.HERB)
 		));
 		add(new FarmingRegion("Kourend", 6711,
-			new FarmingPatch("", Varbits.FARMING_4771, PatchImplementation.SPIRIT_TREE)
+			new FarmingPatch("", Varbits.FARMING_7904, PatchImplementation.SPIRIT_TREE)
 		));
 		add(new FarmingRegion("Kourend", 7223,
-			new FarmingPatch("West 1", Varbits.GRAPES_4953, PatchImplementation.GRAPES),
-			new FarmingPatch("West 2", Varbits.GRAPES_4954, PatchImplementation.GRAPES),
-			new FarmingPatch("West 3", Varbits.GRAPES_4955, PatchImplementation.GRAPES),
-			new FarmingPatch("West 4", Varbits.GRAPES_4956, PatchImplementation.GRAPES),
-			new FarmingPatch("West 5", Varbits.GRAPES_4957, PatchImplementation.GRAPES),
-			new FarmingPatch("West 6", Varbits.GRAPES_4958, PatchImplementation.GRAPES),
-			new FarmingPatch("East 1", Varbits.GRAPES_4959, PatchImplementation.GRAPES),
-			new FarmingPatch("East 2", Varbits.GRAPES_4960, PatchImplementation.GRAPES),
-			new FarmingPatch("East 3", Varbits.GRAPES_4961, PatchImplementation.GRAPES),
-			new FarmingPatch("East 4", Varbits.GRAPES_4962, PatchImplementation.GRAPES),
-			new FarmingPatch("East 5", Varbits.GRAPES_4963, PatchImplementation.GRAPES),
-			new FarmingPatch("East 6", Varbits.GRAPES_4964, PatchImplementation.GRAPES)
+			new FarmingPatch("East 1", Varbits.GRAPES_4953, PatchImplementation.GRAPES),
+			new FarmingPatch("East 2", Varbits.GRAPES_4954, PatchImplementation.GRAPES),
+			new FarmingPatch("East 3", Varbits.GRAPES_4955, PatchImplementation.GRAPES),
+			new FarmingPatch("East 4", Varbits.GRAPES_4956, PatchImplementation.GRAPES),
+			new FarmingPatch("East 5", Varbits.GRAPES_4957, PatchImplementation.GRAPES),
+			new FarmingPatch("East 6", Varbits.GRAPES_4958, PatchImplementation.GRAPES),
+			new FarmingPatch("West 1", Varbits.GRAPES_4959, PatchImplementation.GRAPES),
+			new FarmingPatch("West 2", Varbits.GRAPES_4960, PatchImplementation.GRAPES),
+			new FarmingPatch("West 3", Varbits.GRAPES_4961, PatchImplementation.GRAPES),
+			new FarmingPatch("West 4", Varbits.GRAPES_4962, PatchImplementation.GRAPES),
+			new FarmingPatch("West 5", Varbits.GRAPES_4963, PatchImplementation.GRAPES),
+			new FarmingPatch("West 6", Varbits.GRAPES_4964, PatchImplementation.GRAPES)
 		));
 
 		add(new FarmingRegion("Lletya", 9265,
@@ -229,7 +232,7 @@ class FarmingWorld
 			new FarmingPatch("Hespori", Varbits.FARMING_7908, PatchImplementation.HESPORI)
 		));
 
-		add(new FarmingRegion("Farming Guild", 4922,
+		add(farmingGuildRegion = new FarmingRegion("Farming Guild", 4922,
 			new FarmingPatch("", Varbits.FARMING_7905, PatchImplementation.TREE),
 			new FarmingPatch("", Varbits.FARMING_4775, PatchImplementation.HERB),
 			new FarmingPatch("", Varbits.FARMING_4772, PatchImplementation.BUSH),
@@ -242,6 +245,13 @@ class FarmingWorld
 			new FarmingPatch("Anima", Varbits.FARMING_7911, PatchImplementation.ANIMA),
 			new FarmingPatch("", Varbits.FARMING_7910, PatchImplementation.CELASTRUS),
 			new FarmingPatch("", Varbits.FARMING_7907, PatchImplementation.REDWOOD)
+		));
+
+		add(new FarmingRegion("Prifddinas", 13151,
+			new FarmingPatch("North", Varbits.FARMING_4771, PatchImplementation.ALLOTMENT),
+			new FarmingPatch("South", Varbits.FARMING_4772, PatchImplementation.ALLOTMENT),
+			new FarmingPatch("", Varbits.FARMING_4773, PatchImplementation.FLOWER),
+			new FarmingPatch("", Varbits.FARMING_4775, PatchImplementation.CRYSTAL_TREE)
 		));
 
 		// Finalize

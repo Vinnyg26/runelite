@@ -67,17 +67,6 @@ public interface NpcIndicatorsConfig extends Config
 
 	@ConfigItem(
 		position = 3,
-		keyName = "enableTag",
-		name = "Enable Tag Option",
-		description = "Enable the NPC tag menu option"
-	)
-	default boolean isTagEnabled()
-	{
-		return false;
-	}
-
-	@ConfigItem(
-		position = 4,
 		keyName = "drawNames",
 		name = "Draw names above NPC",
 		description = "Configures whether or not NPC names should be drawn above the NPC"
@@ -88,7 +77,7 @@ public interface NpcIndicatorsConfig extends Config
 	}
 
 	@ConfigItem(
-		position = 5,
+		position = 4,
 		keyName = "drawMinimapNames",
 		name = "Draw names on minimap",
 		description = "Configures whether or not NPC names should be drawn on the minimap"
@@ -99,7 +88,29 @@ public interface NpcIndicatorsConfig extends Config
 	}
 
 	@ConfigItem(
+		position = 5,
+		keyName = "highlightMenuNames",
+		name = "Highlight menu names",
+		description = "Highlight NPC names in right click menu"
+	)
+	default boolean highlightMenuNames()
+	{
+		return false;
+	}
+
+	@ConfigItem(
 		position = 6,
+		keyName = "ignoreDeadNpcs",
+		name = "Ignore dead NPCs",
+		description = "Prevents highlighting NPCs after they are dead"
+	)
+	default boolean ignoreDeadNpcs()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		position = 7,
 		keyName = "showRespawnTimer",
 		name = "Show respawn timer",
 		description = "Show respawn timer of tagged NPCs")
@@ -107,4 +118,12 @@ public interface NpcIndicatorsConfig extends Config
 	{
 		return false;
 	}
+
+	@ConfigItem(
+		position = 7,
+		keyName = "deadNpcMenuColor",
+		name = "Dead NPC menu color",
+		description = "Color of the NPC menus for dead NPCs"
+	)
+	Color deadNpcMenuColor();
 }

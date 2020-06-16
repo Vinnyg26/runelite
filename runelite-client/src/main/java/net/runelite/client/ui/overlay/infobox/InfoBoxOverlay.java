@@ -26,6 +26,7 @@
 package net.runelite.client.ui.overlay.infobox;
 
 import com.google.common.base.Strings;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
@@ -35,19 +36,20 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.client.config.RuneLiteConfig;
-import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
-import net.runelite.client.ui.overlay.OverlayUtil;
+import net.runelite.client.ui.overlay.components.ComponentOrientation;
 import net.runelite.client.ui.overlay.components.InfoBoxComponent;
 import net.runelite.client.ui.overlay.components.LayoutableRenderableEntity;
-import net.runelite.client.ui.overlay.components.PanelComponent;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 
 @Singleton
-public class InfoBoxOverlay extends Overlay
+public class InfoBoxOverlay extends OverlayPanel
 {
-	private final PanelComponent panelComponent = new PanelComponent();
+	private static final int GAP = 1;
+	private static final int DEFAULT_WRAP_COUNT = 4;
+
 	private final InfoBoxManager infoboxManager;
 	private final TooltipManager tooltipManager;
 	private final Client client;
@@ -65,10 +67,12 @@ public class InfoBoxOverlay extends Overlay
 		this.client = client;
 		this.config = config;
 		setPosition(OverlayPosition.TOP_LEFT);
+		setClearChildren(false);
 
+		panelComponent.setWrap(true);
 		panelComponent.setBackgroundColor(null);
 		panelComponent.setBorder(new Rectangle());
-		panelComponent.setGap(new Point(1, 1));
+		panelComponent.setGap(new Point(GAP, GAP));
 	}
 
 	@Override
@@ -81,12 +85,12 @@ public class InfoBoxOverlay extends Overlay
 			return null;
 		}
 
-		panelComponent.getChildren().clear();
-		panelComponent.setWrapping(config.infoBoxWrap());
+		// Set preferred size to the size of DEFAULT_WRAP_COUNT infoboxes, including the padding - which is applied
+		// to the last infobox prior to wrapping too.
+		panelComponent.setPreferredSize(new Dimension(DEFAULT_WRAP_COUNT * (config.infoBoxSize() + GAP), DEFAULT_WRAP_COUNT * (config.infoBoxSize() + GAP)));
 		panelComponent.setOrientation(config.infoBoxVertical()
-			? PanelComponent.Orientation.VERTICAL
-			: PanelComponent.Orientation.HORIZONTAL);
-		panelComponent.setPreferredSize(new Dimension(config.infoBoxSize(), config.infoBoxSize()));
+			? ComponentOrientation.VERTICAL
+			: ComponentOrientation.HORIZONTAL);
 
 		for (InfoBox box : infoBoxes)
 		{
@@ -95,15 +99,23 @@ public class InfoBoxOverlay extends Overlay
 				continue;
 			}
 
+			final String text = box.getText();
+			final Color color = box.getTextColor();
+
 			final InfoBoxComponent infoBoxComponent = new InfoBoxComponent();
-			infoBoxComponent.setColor(box.getTextColor());
+			infoBoxComponent.setText(text);
+			if (color != null)
+			{
+				infoBoxComponent.setColor(color);
+			}
 			infoBoxComponent.setImage(box.getScaledImage());
-			infoBoxComponent.setText(box.getText());
 			infoBoxComponent.setTooltip(box.getTooltip());
+			infoBoxComponent.setPreferredSize(new Dimension(config.infoBoxSize(), config.infoBoxSize()));
+			infoBoxComponent.setBackgroundColor(config.overlayBackgroundColor());
 			panelComponent.getChildren().add(infoBoxComponent);
 		}
 
-		final Dimension dimension = panelComponent.render(graphics);
+		final Dimension dimension = super.render(graphics);
 
 		// Handle tooltips
 		final Point mouse = new Point(client.getMouseCanvasPosition().getX(), client.getMouseCanvasPosition().getY());
@@ -116,14 +128,9 @@ public class InfoBoxOverlay extends Overlay
 
 				if (!Strings.isNullOrEmpty(component.getTooltip()))
 				{
-					final Rectangle intersectionRectangle = new Rectangle(component.getPreferredLocation(), component.getPreferredSize());
-
-					// Move the intersection based on overlay position
+					// Create intersection rectangle
+					final Rectangle intersectionRectangle = new Rectangle(component.getBounds());
 					intersectionRectangle.translate(getBounds().x, getBounds().y);
-
-					// Move the intersection based on overlay "orientation"
-					final Point transformed = OverlayUtil.transformPosition(getPosition(), intersectionRectangle.getSize());
-					intersectionRectangle.translate(transformed.x, transformed.y);
 
 					if (intersectionRectangle.contains(mouse))
 					{
@@ -133,6 +140,7 @@ public class InfoBoxOverlay extends Overlay
 			}
 		}
 
+		panelComponent.getChildren().clear();
 		return dimension;
 	}
 }

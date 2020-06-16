@@ -196,6 +196,7 @@ public class FairyRingPlugin extends Plugin
 		searchBtn.setOnOpListener((JavaScriptCallback) this::menuClose);
 		searchInput = chatboxPanelManager.openTextInput("Filter fairy rings")
 			.onChanged(s -> clientThread.invokeLater(() -> updateFilter(s)))
+			.onDone(s -> false)
 			.onClose(() ->
 			{
 				clientThread.invokeLater(() -> updateFilter(""));
@@ -302,7 +303,7 @@ public class FairyRingPlugin extends Plugin
 			String code = Text.removeTags(c.getDescription().getName()).replaceAll(" ", "");
 			String tags = null;
 
-			if (code.length() > 0)
+			if (!code.isEmpty())
 			{
 				try
 				{

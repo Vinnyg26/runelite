@@ -44,13 +44,13 @@ import net.runelite.client.plugins.cluescrolls.clues.EmoteClue;
 import net.runelite.client.plugins.cluescrolls.clues.FairyRingClue;
 import net.runelite.client.plugins.cluescrolls.clues.HotColdClue;
 import net.runelite.client.plugins.cluescrolls.clues.MapClue;
-import net.runelite.client.plugins.cluescrolls.clues.emote.ItemRequirement;
+import net.runelite.client.plugins.cluescrolls.clues.item.ItemRequirement;
 import net.runelite.client.util.Text;
 
 @Singleton
 public class TagManager
 {
-	private static final String ITEM_KEY_PREFIX = "item_";
+	static final String ITEM_KEY_PREFIX = "item_";
 	private final ConfigManager configManager;
 	private final ItemManager itemManager;
 	private final ClueScrollService clueScrollService;
@@ -165,6 +165,20 @@ public class TagManager
 		{
 			setTags(itemId, tags, true);
 		}
+	}
+
+	public void renameTag(String oldTag, String newTag)
+	{
+		List<Integer> items = getItemsForTag(Text.standardize(oldTag));
+		items.forEach(id ->
+		{
+			Collection<String> tags = getTags(id, id < 0);
+
+			tags.remove(Text.standardize(oldTag));
+			tags.add(Text.standardize(newTag));
+
+			setTags(id, tags, id < 0);
+		});
 	}
 
 	private int getItemId(int itemId, boolean variation)

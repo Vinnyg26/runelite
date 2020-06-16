@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2017, Cameron <moberg@tuta.io>
  * Copyright (c) 2018, Levi <me@levischuck.com>
+ * Copyright (c) 2020, Anthony <https://github.com/while-loop>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,21 +29,20 @@ package net.runelite.client.plugins.xptracker;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Experience;
 import net.runelite.api.Skill;
 
 @Slf4j
-@RequiredArgsConstructor
 class XpStateSingle
 {
 	private final Skill skill;
 	private final Map<XpActionType, XpAction> actions = new HashMap<>();
 
 	@Getter
-	private final int startXp;
+	@Setter
+	private long startXp;
 
 	@Getter
 	private int xpGained = 0;
@@ -54,13 +54,19 @@ class XpStateSingle
 	private int startLevelExp = 0;
 	private int endLevelExp = 0;
 
+	XpStateSingle(Skill skill, long startXp)
+	{
+		this.skill = skill;
+		this.startXp = startXp;
+	}
+
 	XpAction getXpAction(final XpActionType type)
 	{
 		actions.putIfAbsent(type, new XpAction());
 		return actions.get(type);
 	}
 
-	private int getCurrentXp()
+	long getCurrentXp()
 	{
 		return startXp + xpGained;
 	}
@@ -86,7 +92,7 @@ class XpStateSingle
 
 	private int getXpRemaining()
 	{
-		return endLevelExp - getCurrentXp();
+		return endLevelExp - (int) getCurrentXp();
 	}
 
 	private int getActionsRemaining()
@@ -123,24 +129,31 @@ class XpStateSingle
 		return (xpGained / xpGoal) * 100;
 	}
 
-	private String getTimeTillLevel()
+	private long getSecondsTillLevel()
 	{
+		// Java 8 doesn't have good duration / period objects to represent spans of time that can be formatted
+		// Rather than importing another dependency like joda time (which is practically built into java 10)
+		// below will be a custom formatter that handles spans larger than 1 day
 		long seconds = getTimeElapsedInSeconds();
 
 		if (seconds <= 0 || xpGained <= 0)
 		{
-			// Infinity symbol
-			return "\u221e";
+			return -1;
 		}
 
 		// formula is xpRemaining / xpPerSecond
 		// xpPerSecond being xpGained / seconds
 		// This can be simplified so division is only done once and we can work in whole numbers!
-		long remainingSeconds = (getXpRemaining() * seconds) / xpGained;
+		return (getXpRemaining() * seconds) / xpGained;
+	}
 
-		// Java 8 doesn't have good duration / period objects to represent spans of time that can be formatted
-		// Rather than importing another dependency like joda time (which is practically built into java 10)
-		// below will be a custom formatter that handles spans larger than 1 day
+	private String getTimeTillLevel()
+	{
+		long remainingSeconds = getSecondsTillLevel();
+		if (remainingSeconds < 0)
+		{
+			return "\u221e";
+		}
 
 		long durationDays = remainingSeconds / (24 * 60 * 60);
 		long durationHours = (remainingSeconds % (24 * 60 * 60)) / (60 * 60);
@@ -155,7 +168,29 @@ class XpStateSingle
 		{
 			return String.format("1 day %02d:%02d:%02d", durationHours, durationMinutes, durationSeconds);
 		}
-		else if (durationHours > 0)
+
+		// durationDays = 0 if we got here.
+		// return time remaining in hh:mm:ss or mm:ss format
+		return getTimeTillLevelShort();
+	}
+
+	/**
+	 * Get time to level in `hh:mm:ss` or `mm:ss` format,
+	 * where `hh` can be > 24.
+	 * @return
+	 */
+	private String getTimeTillLevelShort()
+	{
+		long remainingSeconds = getSecondsTillLevel();
+		if (remainingSeconds < 0)
+		{
+			return "\u221e";
+		}
+
+		long durationHours = remainingSeconds / (60 * 60);
+		long durationMinutes = (remainingSeconds % (60 * 60)) / 60;
+		long durationSeconds = remainingSeconds % 60;
+		if (durationHours > 0)
 		{
 			return String.format("%02d:%02d:%02d", durationHours, durationMinutes, durationSeconds);
 		}
@@ -170,7 +205,7 @@ class XpStateSingle
 		return toHourly(xpGained);
 	}
 
-	boolean update(int currentXp, int goalStartXp, int goalEndXp)
+	boolean update(long currentXp, int goalStartXp, int goalEndXp)
 	{
 		if (startXp == -1)
 		{
@@ -178,8 +213,8 @@ class XpStateSingle
 			return false;
 		}
 
-		int originalXp = xpGained + startXp;
-		int actionExp = currentXp - originalXp;
+		long originalXp = xpGained + startXp;
+		int actionExp = (int) (currentXp - originalXp);
 
 		// No experience gained
 		if (actionExp == 0)
@@ -210,28 +245,31 @@ class XpStateSingle
 		action.setActions(action.getActions() + 1);
 
 		// Calculate experience gained
-		xpGained = currentXp - startXp;
+		xpGained = (int) (currentXp - startXp);
 
-		// Determine XP goals
-		if (goalStartXp <= 0 || currentXp > goalEndXp)
+		// Determine XP goals, overall has no goals
+		if (skill != Skill.OVERALL)
 		{
-			startLevelExp = Experience.getXpForLevel(Experience.getLevelForXp(currentXp));
-		}
-		else
-		{
-			startLevelExp = goalStartXp;
-		}
+			if (goalStartXp < 0 || currentXp > goalEndXp)
+			{
+				startLevelExp = Experience.getXpForLevel(Experience.getLevelForXp((int) currentXp));
+			}
+			else
+			{
+				startLevelExp = goalStartXp;
+			}
 
-		if (goalEndXp <= 0 || currentXp > goalEndXp)
-		{
-			int currentLevel = Experience.getLevelForXp(currentXp);
-			endLevelExp = currentLevel + 1 <= Experience.MAX_VIRT_LEVEL
-				? Experience.getXpForLevel(currentLevel + 1)
-				: Experience.MAX_SKILL_XP;
-		}
-		else
-		{
-			endLevelExp = goalEndXp;
+			if (goalEndXp <= 0 || currentXp > goalEndXp)
+			{
+				int currentLevel = Experience.getLevelForXp((int) currentXp);
+				endLevelExp = currentLevel + 1 <= Experience.MAX_VIRT_LEVEL
+					? Experience.getXpForLevel(currentLevel + 1)
+					: Experience.MAX_SKILL_XP;
+			}
+			else
+			{
+				endLevelExp = goalEndXp;
+			}
 		}
 
 		return true;
@@ -261,6 +299,7 @@ class XpStateSingle
 			.actionsRemainingToGoal(getActionsRemaining())
 			.actionsPerHour(getActionsHr())
 			.timeTillGoal(getTimeTillLevel())
+			.timeTillGoalShort(getTimeTillLevelShort())
 			.startGoalXp(startLevelExp)
 			.endGoalXp(endLevelExp)
 			.build();

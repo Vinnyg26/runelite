@@ -27,18 +27,17 @@ package net.runelite.client.plugins.xptracker;
 
 import java.awt.BorderLayout;
 import java.awt.GridLayout;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
@@ -46,11 +45,11 @@ import net.runelite.client.game.SkillIconManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.ui.components.DragAndDropReorderPane;
 import net.runelite.client.ui.components.PluginErrorPanel;
 import net.runelite.client.util.LinkBrowser;
 import okhttp3.HttpUrl;
 
-@Slf4j
 class XpPanel extends PluginPanel
 {
 	private final Map<Skill, XpInfoBox> infoBoxes = new HashMap<>();
@@ -123,26 +122,18 @@ class XpPanel extends PluginPanel
 		overallPanel.add(overallIcon, BorderLayout.WEST);
 		overallPanel.add(overallInfo, BorderLayout.CENTER);
 
+		final JComponent infoBoxPanel = new DragAndDropReorderPane();
 
-		final JPanel infoBoxPanel = new JPanel();
-		infoBoxPanel.setLayout(new BoxLayout(infoBoxPanel, BoxLayout.Y_AXIS));
 		layoutPanel.add(overallPanel);
 		layoutPanel.add(infoBoxPanel);
 
-		try
+		for (Skill skill : Skill.values())
 		{
-			for (Skill skill : Skill.values())
+			if (skill == Skill.OVERALL)
 			{
-				if (skill == Skill.OVERALL)
-				{
-					break;
-				}
-				infoBoxes.put(skill, new XpInfoBox(xpTrackerPlugin, xpTrackerConfig, client, infoBoxPanel, skill, iconManager));
+				break;
 			}
-		}
-		catch (IOException e)
-		{
-			log.warn(null, e);
+			infoBoxes.put(skill, new XpInfoBox(xpTrackerPlugin, xpTrackerConfig, client, infoBoxPanel, skill, iconManager));
 		}
 
 		errorPanel.setContent("Exp trackers", "You have not gained experience yet.");
@@ -193,7 +184,7 @@ class XpPanel extends PluginPanel
 		}
 	}
 
-	void updateTotal(XpSnapshotTotal xpSnapshotTotal)
+	void updateTotal(XpSnapshotSingle xpSnapshotTotal)
 	{
 		// if player has gained exp and hasn't switched displays yet, hide error panel and show overall info
 		if (xpSnapshotTotal.getXpGainedInSession() > 0 && !overallPanel.isVisible())
@@ -201,11 +192,16 @@ class XpPanel extends PluginPanel
 			overallPanel.setVisible(true);
 			remove(errorPanel);
 		}
+		else if (xpSnapshotTotal.getXpGainedInSession() == 0 && overallPanel.isVisible())
+		{
+			overallPanel.setVisible(false);
+			add(errorPanel);
+		}
 
 		SwingUtilities.invokeLater(() -> rebuildAsync(xpSnapshotTotal));
 	}
 
-	private void rebuildAsync(XpSnapshotTotal xpSnapshotTotal)
+	private void rebuildAsync(XpSnapshotSingle xpSnapshotTotal)
 	{
 		overallExpGained.setText(XpInfoBox.htmlLabel("Gained: ", xpSnapshotTotal.getXpGainedInSession()));
 		overallExpHour.setText(XpInfoBox.htmlLabel("Per hour: ", xpSnapshotTotal.getXpPerHour()));

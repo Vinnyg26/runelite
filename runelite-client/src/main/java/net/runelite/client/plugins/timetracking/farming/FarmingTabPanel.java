@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Set;
 import javax.swing.JLabel;
 import javax.swing.border.EmptyBorder;
-import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.ItemID;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.timetracking.TabContentPanel;
 import net.runelite.client.plugins.timetracking.TimeTrackingConfig;
@@ -42,25 +42,27 @@ import net.runelite.client.plugins.timetracking.TimeablePanel;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 
-@Slf4j
 public class FarmingTabPanel extends TabContentPanel
 {
 	private final FarmingTracker farmingTracker;
 	private final ItemManager itemManager;
 	private final TimeTrackingConfig config;
 	private final List<TimeablePanel<FarmingPatch>> patchPanels;
+	private final FarmingContractManager farmingContractManager;
 
 	FarmingTabPanel(
 		FarmingTracker farmingTracker,
 		ItemManager itemManager,
 		TimeTrackingConfig config,
-		Set<FarmingPatch> patches
+		Set<FarmingPatch> patches,
+		FarmingContractManager farmingContractManager
 	)
 	{
 		this.farmingTracker = farmingTracker;
 		this.itemManager = itemManager;
 		this.config = config;
 		this.patchPanels = new ArrayList<>();
+		this.farmingContractManager = farmingContractManager;
 
 		setLayout(new GridBagLayout());
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -188,6 +190,17 @@ public class FarmingTabPanel extends TabContentPanel
 				else
 				{
 					panel.getProgress().setVisible(false);
+				}
+				JLabel farmingContractIcon = panel.getFarmingContractIcon();
+				if (farmingContractManager.shouldHighlightFarmingTabPanel(patch))
+				{
+					itemManager.getImage(ItemID.SEED_PACK).addTo(farmingContractIcon);
+					farmingContractIcon.setToolTipText(farmingContractManager.getContract().getName());
+				}
+				else
+				{
+					farmingContractIcon.setIcon(null);
+					farmingContractIcon.setToolTipText("");
 				}
 			}
 		}

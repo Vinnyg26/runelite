@@ -25,6 +25,7 @@
 package net.runelite.client.plugins.tileindicators;
 
 import java.awt.Color;
+import net.runelite.client.config.Alpha;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
@@ -32,6 +33,7 @@ import net.runelite.client.config.ConfigItem;
 @ConfigGroup("tileindicators")
 public interface TileIndicatorsConfig extends Config
 {
+	@Alpha
 	@ConfigItem(
 		keyName = "highlightDestinationColor",
 		name = "Color of current destination highlighting",
@@ -52,12 +54,44 @@ public interface TileIndicatorsConfig extends Config
 		return true;
 	}
 
+	@Alpha
+	@ConfigItem(
+		keyName = "highlightHoveredColor",
+		name = "Color of current hovered highlighting",
+		description = "Configures the highlight color of hovered tile"
+	)
+	default Color highlightHoveredColor()
+	{
+		return new Color(0, 0, 0, 0);
+	}
+
 	@ConfigItem(
 		keyName = "highlightHoveredTile",
 		name = "Highlight hovered tile",
 		description = "Highlights tile player is hovering with mouse"
 	)
 	default boolean highlightHoveredTile()
+	{
+		return false;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "highlightCurrentColor",
+		name = "Color of current true tile highlighting",
+		description = "Configures the highlight color of current true tile"
+	)
+	default Color highlightCurrentColor()
+	{
+		return Color.CYAN;
+	}
+
+	@ConfigItem(
+		keyName = "highlightCurrentTile",
+		name = "Highlight current true tile",
+		description = "Highlights true tile player is on as seen by server"
+	)
+	default boolean highlightCurrentTile()
 	{
 		return false;
 	}

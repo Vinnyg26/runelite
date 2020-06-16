@@ -24,13 +24,17 @@
  */
 package net.runelite.client.plugins.objectindicators;
 
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
-import java.awt.Polygon;
+import java.awt.Shape;
 import javax.inject.Inject;
 import net.runelite.api.Client;
+import net.runelite.api.DecorativeObject;
 import net.runelite.api.GameObject;
+import net.runelite.api.GroundObject;
 import net.runelite.api.TileObject;
+import net.runelite.api.WallObject;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -57,30 +61,57 @@ class ObjectIndicatorsOverlay extends Overlay
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		for (TileObject object : plugin.getObjects())
+		for (ColorTileObject colorTileObject : plugin.getObjects())
 		{
+			TileObject object = colorTileObject.getTileObject();
+			Color color = colorTileObject.getColor();
+
 			if (object.getPlane() != client.getPlane())
 			{
 				continue;
 			}
 
-			final Polygon polygon;
+			if (color == null || !config.rememberObjectColors())
+			{
+				// Fallback to the current config if the object is marked before the addition of multiple colors
+				color = config.markerColor();
+			}
+
+			final Shape polygon;
+			Shape polygon2 = null;
 
 			if (object instanceof GameObject)
 			{
 				polygon = ((GameObject) object).getConvexHull();
+			}
+			else if (object instanceof WallObject)
+			{
+				polygon = ((WallObject) object).getConvexHull();
+				polygon2 = ((WallObject) object).getConvexHull2();
+			}
+			else if (object instanceof DecorativeObject)
+			{
+				polygon = ((DecorativeObject) object).getConvexHull();
+				polygon2 = ((DecorativeObject) object).getConvexHull2();
+			}
+			else if (object instanceof GroundObject)
+			{
+				polygon = ((GroundObject) object).getConvexHull();
 			}
 			else
 			{
 				polygon = object.getCanvasTilePoly();
 			}
 
-			if (polygon == null)
+			if (polygon != null)
 			{
-				continue;
+				OverlayUtil.renderPolygon(graphics, polygon, color);
 			}
 
-			OverlayUtil.renderPolygon(graphics, polygon, config.markerColor());
+			if (polygon2 != null)
+			{
+				OverlayUtil.renderPolygon(graphics, polygon2, color);
+			}
 		}
 
 		return null;

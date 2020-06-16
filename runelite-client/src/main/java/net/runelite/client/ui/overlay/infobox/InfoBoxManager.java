@@ -27,26 +27,24 @@ package net.runelite.client.ui.overlay.infobox;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ComparisonChain;
 import java.awt.Graphics;
-import java.awt.Image;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.events.ConfigChanged;
 import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.eventbus.Subscribe;
-import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.util.AsyncBufferedImage;
 
 @Singleton
 @Slf4j
 public class InfoBoxManager
 {
-	private final List<InfoBox> infoBoxes = new ArrayList<>();
+	private final List<InfoBox> infoBoxes = new CopyOnWriteArrayList<>();
 	private final RuneLiteConfig runeLiteConfig;
 
 	@Inject
@@ -70,25 +68,39 @@ public class InfoBoxManager
 		log.debug("Adding InfoBox {}", infoBox);
 
 		updateInfoBoxImage(infoBox);
-		infoBoxes.add(infoBox);
-		refreshInfoBoxes();
-	}
 
-	public void removeInfoBox(InfoBox infoBox)
-	{
-		log.debug("Removing InfoBox {}", infoBox);
-		if (infoBoxes.remove(infoBox))
+		synchronized (this)
 		{
-			refreshInfoBoxes();
+			int idx = Collections.binarySearch(infoBoxes, infoBox, (b1, b2) -> ComparisonChain
+				.start()
+				.compare(b1.getPriority(), b2.getPriority())
+				.compare(b1.getPlugin().getName(), b2.getPlugin().getName())
+				.result());
+			infoBoxes.add(idx < 0 ? -idx - 1 : idx, infoBox);
+		}
+
+		BufferedImage image = infoBox.getImage();
+
+		if (image instanceof AsyncBufferedImage)
+		{
+			AsyncBufferedImage abi = (AsyncBufferedImage) image;
+			abi.onLoaded(() -> updateInfoBoxImage(infoBox));
 		}
 	}
 
-	public void removeIf(Predicate<InfoBox> filter)
+	public synchronized void removeInfoBox(InfoBox infoBox)
 	{
-		log.debug("Removing InfoBoxes for filter {}", filter);
+		if (infoBoxes.remove(infoBox))
+		{
+			log.debug("Removed InfoBox {}", infoBox);
+		}
+	}
+
+	public synchronized void removeIf(Predicate<InfoBox> filter)
+	{
 		if (infoBoxes.removeIf(filter))
 		{
-			refreshInfoBoxes();
+			log.debug("Removed InfoBoxes for filter {}", filter);
 		}
 	}
 
@@ -97,28 +109,12 @@ public class InfoBoxManager
 		return Collections.unmodifiableList(infoBoxes);
 	}
 
-	public void cull()
+	public synchronized void cull()
 	{
-		boolean culled = false;
-		for (Iterator<InfoBox> it = infoBoxes.iterator(); it.hasNext();)
-		{
-			InfoBox box = it.next();
-
-			if (box.cull())
-			{
-				log.debug("Culling InfoBox {}", box);
-				it.remove();
-				culled = true;
-			}
-		}
-
-		if (culled)
-		{
-			refreshInfoBoxes();
-		}
+		infoBoxes.removeIf(InfoBox::cull);
 	}
 
-	private void updateInfoBoxImage(final InfoBox infoBox)
+	public void updateInfoBoxImage(final InfoBox infoBox)
 	{
 		if (infoBox.getImage() == null)
 		{
@@ -126,8 +122,8 @@ public class InfoBoxManager
 		}
 
 		// Set scaled InfoBox image
-		final Image image = infoBox.getImage();
-		Image resultImage = image;
+		final BufferedImage image = infoBox.getImage();
+		BufferedImage resultImage = image;
 		final double width = image.getWidth(null);
 		final double height = image.getHeight(null);
 		final double size = Math.max(2, runeLiteConfig.infoBoxSize()); // Limit size to 2 as that is minimum size not causing breakage
@@ -153,14 +149,5 @@ public class InfoBoxManager
 		}
 
 		infoBox.setScaledImage(resultImage);
-	}
-
-	private void refreshInfoBoxes()
-	{
-		infoBoxes.sort((b1, b2) -> ComparisonChain
-			.start()
-			.compare(b1.getPriority(), b2.getPriority())
-			.compare(b1.getPlugin().getClass().getAnnotation(PluginDescriptor.class).name(), b2.getPlugin().getClass().getAnnotation(PluginDescriptor.class).name())
-			.result());
 	}
 }

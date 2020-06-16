@@ -53,6 +53,16 @@ public interface ItemStatConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "geStats",
+		name = "Enable GE item information",
+		description = "Shows an item information panel when buying items in the GE"
+	)
+	default boolean geStats()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "relative",
 		name = "Show Relative",
 		description = "Show relative stat change in tooltip"
@@ -78,6 +88,36 @@ public interface ItemStatConfig extends Config
 		description = "Show theoretical stat change in tooltip"
 	)
 	default boolean theoretical()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "showWeight",
+		name = "Show Weight",
+		description = "Show weight in tooltip"
+	)
+	default boolean showWeight()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "showStatsInBank",
+		name = "Show Stats In Bank",
+		description = "Show item stats on bank items tooltip"
+	)
+	default boolean showStatsInBank()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "alwaysShowBaseStats",
+		name = "Always Show Base Stats",
+		description = "Always include the base items stats in the tooltip"
+	)
+	default boolean alwaysShowBaseStats()
 	{
 		return false;
 	}

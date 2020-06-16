@@ -25,17 +25,21 @@
  */
 package net.runelite.client.plugins.timestamp;
 
+import com.google.inject.Provides;
 import java.awt.Color;
+import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoField;
+import java.util.Date;
 import javax.inject.Inject;
+import lombok.Getter;
 import net.runelite.api.Client;
 import net.runelite.api.MessageNode;
 import net.runelite.api.Varbits;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
-import net.runelite.client.config.ChatColorConfig;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -53,7 +57,37 @@ public class TimestampPlugin extends Plugin
 	private Client client;
 
 	@Inject
-	private ChatColorConfig chatColorConfig;
+	private TimestampConfig config;
+
+	@Getter
+	private SimpleDateFormat formatter;
+
+	@Provides
+	public TimestampConfig provideConfig(final ConfigManager configManager)
+	{
+		return configManager.getConfig(TimestampConfig.class);
+	}
+
+	@Override
+	protected void startUp() throws Exception
+	{
+		updateFormatter();
+	}
+
+	@Override
+	protected void shutDown() throws Exception
+	{
+		formatter = null;
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (event.getGroup().equals("timestamp") && event.getKey().equals("format"))
+		{
+			updateFormatter();
+		}
+	}
 
 	@Subscribe
 	public void onScriptCallbackEvent(ScriptCallbackEvent event)
@@ -71,15 +105,9 @@ public class TimestampPlugin extends Plugin
 
 		int messageId = intStack[intStackSize - 1];
 
-		MessageNode messageNode = (MessageNode) client.getMessages().get(messageId);
+		MessageNode messageNode = client.getMessages().get(messageId);
 
-		final ZonedDateTime time = ZonedDateTime.ofInstant(
-			Instant.ofEpochSecond(messageNode.getTimestamp()), ZoneId.systemDefault());
-
-		final String dateFormat = time.get(ChronoField.HOUR_OF_DAY) + ":" +
-			String.format("%02d", time.get(ChronoField.MINUTE_OF_HOUR));
-
-		String timestamp = "[" + dateFormat + "] ";
+		String timestamp = generateTimestamp(messageNode.getTimestamp(), ZoneId.systemDefault()) + " ";
 
 		Color timestampColour = getTimestampColour();
 		if (timestampColour != null)
@@ -94,6 +122,26 @@ public class TimestampPlugin extends Plugin
 	{
 		boolean isChatboxTransparent = client.isResized() && client.getVar(Varbits.TRANSPARENT_CHATBOX) == 1;
 
-		return isChatboxTransparent ? chatColorConfig.transparentTimestamp() : chatColorConfig.opaqueTimestamp();
+		return isChatboxTransparent ? config.transparentTimestamp() : config.opaqueTimestamp();
+	}
+
+	String generateTimestamp(int timestamp, ZoneId zoneId)
+	{
+		final ZonedDateTime time = ZonedDateTime.ofInstant(
+			Instant.ofEpochSecond(timestamp), zoneId);
+
+		return formatter.format(Date.from(time.toInstant()));
+	}
+
+	private void updateFormatter()
+	{
+		try
+		{
+			formatter = new SimpleDateFormat(config.timestampFormat());
+		}
+		catch (IllegalArgumentException e)
+		{
+			formatter = new SimpleDateFormat("[HH:mm]");
+		}
 	}
 }

@@ -31,14 +31,17 @@ import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import net.runelite.api.ChatMessageType;
-import static net.runelite.api.ChatMessageType.SERVER;
+import static net.runelite.api.ChatMessageType.GAMEMESSAGE;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.api.MessageNode;
 import net.runelite.api.Player;
+import net.runelite.api.Skill;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
-import net.runelite.api.events.SetMessage;
+import net.runelite.api.events.StatChanged;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.Notifier;
@@ -52,15 +55,15 @@ import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import org.mockito.Mock;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SlayerPluginTest
@@ -68,7 +71,9 @@ public class SlayerPluginTest
 	private static final String TASK_NEW = "Your new task is to kill 231 Suqahs.";
 	private static final String TASK_NEW_KONAR = "You are to bring balance to 147 Wyrms in the Karuulm Slayer Dungeon.";
 	private static final String TASK_NEW_KONAR_2 = "You are to bring balance to 142 Hellhounds in Witchhaven Dungeon.";
+	private static final String TASK_NEW_KONAR_3 = "You are to bring balance to 135 Trolls south of Mount Quidamortem.";
 	private static final String TASK_NEW_FIRST = "We'll start you off hunting goblins, you'll need to kill 17 of them.";
+	private static final String TASK_NEW_FIRST_KONAR = "We'll start you off bringing balance to cows, you'll need to kill 44 of them.";
 	private static final String TASK_NEW_NPC_CONTACT = "Excellent, you're doing great. Your new task is to kill<br>211 Suqahs.";
 	private static final String TASK_NEW_FROM_PARTNER = "You have received a new Slayer assignment from breaklulz: Dust Devils (377)";
 	private static final String TASK_CHECKSLAYERGEM = "You're assigned to kill Suqahs; only 211 more to go.";
@@ -78,8 +83,15 @@ public class SlayerPluginTest
 
 	private static final String TASK_BOSS_NEW = "Excellent. You're now assigned to kill Vet'ion 3 times.<br>Your reward point tally is 914.";
 	private static final String TASK_BOSS_NEW_THE = "Excellent. You're now assigned to kill the Chaos <br>Elemental 3 times. Your reward point tally is 914.";
+	private static final String TASK_KONAR_BOSS = "You're now assigned to bring balance to the Alchemical<br>Hydra 35 times. Your reward point tally is 724.";
 
 	private static final String TASK_EXISTING = "You're still hunting suqahs; you have 222 to go. Come<br>back when you've finished your task.";
+	private static final String TASK_EXISTING_KONAR = "You're still bringing balance to adamant dragons in the Lithkren Vault, with 3 to go. Come back when you're finished.";
+	private static final String TASK_EXISTING_WILDERNESS = "You're still meant to be slaying bandits in the Wilderness; you have 99 to go. Come back when you've finished your task.";
+
+	private static final String TASK_ACTIVATESLAYERGEM = "You're currently assigned to kill fossil island wyverns; only 23 more to go. Your reward point tally is 46.";
+	private static final String TASK_ACTIVATESLAYERGEM_KONAR = "You're currently assigned to bring balance to adamant dragons in the Lithkren Vault; you have 3 more to go. Your reward point tally is 16.";
+	private static final String TASK_ACTIVATESLAYERGEM_WILDERNESS = "You're currently assigned to kill bandits in the Wilderness; only 99 more to go. Your reward point tally is 34.";
 
 	private static final String REWARD_POINTS = "Reward points: 17,566";
 
@@ -203,6 +215,19 @@ public class SlayerPluginTest
 	}
 
 	@Test
+	public void testNewKonarTask3()
+	{
+		Widget npcDialog = mock(Widget.class);
+		when(npcDialog.getText()).thenReturn(TASK_NEW_KONAR_3);
+		when(client.getWidget(WidgetInfo.DIALOG_NPC_TEXT)).thenReturn(npcDialog);
+		slayerPlugin.onGameTick(new GameTick());
+
+		assertEquals("Trolls", slayerPlugin.getTaskName());
+		assertEquals(135, slayerPlugin.getAmount());
+		assertEquals("Mount Quidamortem", slayerPlugin.getTaskLocation());
+	}
+
+	@Test
 	public void testFirstTask()
 	{
 		Widget npcDialog = mock(Widget.class);
@@ -212,6 +237,18 @@ public class SlayerPluginTest
 
 		assertEquals("goblins", slayerPlugin.getTaskName());
 		assertEquals(17, slayerPlugin.getAmount());
+	}
+
+	@Test
+	public void testFirstTaskKonar()
+	{
+		Widget npcDialog = mock(Widget.class);
+		when(npcDialog.getText()).thenReturn(TASK_NEW_FIRST_KONAR);
+		when(client.getWidget(WidgetInfo.DIALOG_NPC_TEXT)).thenReturn(npcDialog);
+		slayerPlugin.onGameTick(new GameTick());
+
+		assertEquals("cows", slayerPlugin.getTaskName());
+		assertEquals(44, slayerPlugin.getAmount());
 	}
 
 	@Test
@@ -236,7 +273,7 @@ public class SlayerPluginTest
 
 		assertEquals("Vet'ion", slayerPlugin.getTaskName());
 		assertEquals(3, slayerPlugin.getAmount());
-		assertEquals(914, slayerPlugin.getPoints());
+		verify(slayerConfig).points(914);
 	}
 
 	@Test
@@ -249,13 +286,26 @@ public class SlayerPluginTest
 
 		assertEquals("Chaos Elemental", slayerPlugin.getTaskName());
 		assertEquals(3, slayerPlugin.getAmount());
-		assertEquals(914, slayerPlugin.getPoints());
+		verify(slayerConfig).points(914);
+	}
+
+	@Test
+	public void testKonarBossTask()
+	{
+		Widget npcDialog = mock(Widget.class);
+		when(npcDialog.getText()).thenReturn(TASK_KONAR_BOSS);
+		when(client.getWidget(WidgetInfo.DIALOG_NPC_TEXT)).thenReturn(npcDialog);
+		slayerPlugin.onGameTick(new GameTick());
+
+		assertEquals("Alchemical Hydra", slayerPlugin.getTaskName());
+		assertEquals(35, slayerPlugin.getAmount());
+		verify(slayerConfig).points(724);
 	}
 
 	@Test
 	public void testPartnerTask()
 	{
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "", TASK_NEW_FROM_PARTNER, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", TASK_NEW_FROM_PARTNER, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
 		assertEquals("Dust Devils", slayerPlugin.getTaskName());
@@ -265,7 +315,7 @@ public class SlayerPluginTest
 	@Test
 	public void testCheckSlayerGem()
 	{
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "", TASK_CHECKSLAYERGEM, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", TASK_CHECKSLAYERGEM, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 		assertEquals("Suqahs", slayerPlugin.getTaskName());
 		assertEquals(211, slayerPlugin.getAmount());
@@ -274,7 +324,7 @@ public class SlayerPluginTest
 	@Test
 	public void testCheckSlayerGemWildernessTask()
 	{
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "", TASK_CHECKSLAYERGEM_WILDERNESS, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", TASK_CHECKSLAYERGEM_WILDERNESS, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 		assertEquals("Suqahs", slayerPlugin.getTaskName());
 		assertEquals(211, slayerPlugin.getAmount());
@@ -284,7 +334,7 @@ public class SlayerPluginTest
 	@Test
 	public void testCheckSlayerGemKonarTask()
 	{
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "", TASK_CHECKSLAYERGEM_KONAR, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", TASK_CHECKSLAYERGEM_KONAR, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
 		assertEquals("Blue dragons", slayerPlugin.getTaskName());
@@ -305,6 +355,70 @@ public class SlayerPluginTest
 	}
 
 	@Test
+	public void testExistingTaskKonar()
+	{
+		Widget npcDialog = mock(Widget.class);
+		when(npcDialog.getText()).thenReturn(TASK_EXISTING_KONAR);
+		when(client.getWidget(WidgetInfo.DIALOG_NPC_TEXT)).thenReturn(npcDialog);
+		slayerPlugin.onGameTick(new GameTick());
+
+		assertEquals("adamant dragons", slayerPlugin.getTaskName());
+		assertEquals(3, slayerPlugin.getAmount());
+		assertEquals("Lithkren Vault", slayerPlugin.getTaskLocation());
+	}
+
+	@Test
+	public void testExistingTaskWilderness()
+	{
+		Widget npcDialog = mock(Widget.class);
+		when(npcDialog.getText()).thenReturn(TASK_EXISTING_WILDERNESS);
+		when(client.getWidget(WidgetInfo.DIALOG_NPC_TEXT)).thenReturn(npcDialog);
+		slayerPlugin.onGameTick(new GameTick());
+
+		assertEquals("bandits", slayerPlugin.getTaskName());
+		assertEquals(99, slayerPlugin.getAmount());
+		assertEquals("Wilderness", slayerPlugin.getTaskLocation());
+	}
+
+	@Test
+	public void testSlayergemActivate()
+	{
+		Widget npcDialog = mock(Widget.class);
+		when(npcDialog.getText()).thenReturn(TASK_ACTIVATESLAYERGEM);
+		when(client.getWidget(WidgetInfo.DIALOG_NPC_TEXT)).thenReturn(npcDialog);
+		slayerPlugin.onGameTick(new GameTick());
+
+		assertEquals("fossil island wyverns", slayerPlugin.getTaskName());
+		assertEquals(23, slayerPlugin.getAmount());
+	}
+
+	@Test
+	public void testSlayergemActivateKonar()
+	{
+		Widget npcDialog = mock(Widget.class);
+		when(npcDialog.getText()).thenReturn(TASK_ACTIVATESLAYERGEM_KONAR);
+		when(client.getWidget(WidgetInfo.DIALOG_NPC_TEXT)).thenReturn(npcDialog);
+		slayerPlugin.onGameTick(new GameTick());
+
+		assertEquals("adamant dragons", slayerPlugin.getTaskName());
+		assertEquals(3, slayerPlugin.getAmount());
+		assertEquals("Lithkren Vault", slayerPlugin.getTaskLocation());
+	}
+
+	@Test
+	public void testSlayergemActivateWilderness()
+	{
+		Widget npcDialog = mock(Widget.class);
+		when(npcDialog.getText()).thenReturn(TASK_ACTIVATESLAYERGEM_WILDERNESS);
+		when(client.getWidget(WidgetInfo.DIALOG_NPC_TEXT)).thenReturn(npcDialog);
+		slayerPlugin.onGameTick(new GameTick());
+
+		assertEquals("bandits", slayerPlugin.getTaskName());
+		assertEquals(99, slayerPlugin.getAmount());
+		assertEquals("Wilderness", slayerPlugin.getTaskLocation());
+	}
+
+	@Test
 	public void testRewardPointsWidget()
 	{
 		Widget rewardBar = mock(Widget.class);
@@ -316,16 +430,16 @@ public class SlayerPluginTest
 		when(client.getWidget(WidgetInfo.SLAYER_REWARDS_TOPBAR)).thenReturn(rewardBar);
 		slayerPlugin.onGameTick(new GameTick());
 
-		assertEquals(17566, slayerPlugin.getPoints());
+		verify(slayerConfig).points(17566);
 	}
 
 	@Test
 	public void testOneTask()
 	{
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "Perterter", TASK_ONE, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "Perterter", TASK_ONE, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
-		assertEquals(1, slayerPlugin.getStreak());
+		verify(slayerConfig).streak(1);
 		assertEquals("", slayerPlugin.getTaskName());
 		assertEquals(0, slayerPlugin.getAmount());
 	}
@@ -333,10 +447,10 @@ public class SlayerPluginTest
 	@Test
 	public void testNoPoints()
 	{
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "Perterter", TASK_COMPLETE_NO_POINTS, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "Perterter", TASK_COMPLETE_NO_POINTS, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
-		assertEquals(3, slayerPlugin.getStreak());
+		verify(slayerConfig).streak(3);
 		assertEquals("", slayerPlugin.getTaskName());
 		assertEquals(0, slayerPlugin.getAmount());
 	}
@@ -344,25 +458,25 @@ public class SlayerPluginTest
 	@Test
 	public void testPoints()
 	{
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "Perterter", TASK_POINTS, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "Perterter", TASK_POINTS, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
-		assertEquals(9, slayerPlugin.getStreak());
+		verify(slayerConfig).streak(9);
 		assertEquals("", slayerPlugin.getTaskName());
 		assertEquals(0, slayerPlugin.getAmount());
-		assertEquals(18_000, slayerPlugin.getPoints());
+		verify(slayerConfig).points(18_000);
 	}
 
 	@Test
 	public void testLargeStreak()
 	{
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "Perterter", TASK_LARGE_STREAK, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "Perterter", TASK_LARGE_STREAK, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
-		assertEquals(2465, slayerPlugin.getStreak());
+		verify(slayerConfig).streak(2465);
 		assertEquals("", slayerPlugin.getTaskName());
 		assertEquals(0, slayerPlugin.getAmount());
-		assertEquals(17_566_000, slayerPlugin.getPoints());
+		verify(slayerConfig).points(17_566_000);
 	}
 
 	@Test
@@ -371,7 +485,7 @@ public class SlayerPluginTest
 		slayerPlugin.setTaskName("cows");
 		slayerPlugin.setAmount(42);
 
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "Perterter", TASK_COMPLETE, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "Perterter", TASK_COMPLETE, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
 		assertEquals("", slayerPlugin.getTaskName());
@@ -384,7 +498,7 @@ public class SlayerPluginTest
 		slayerPlugin.setTaskName("cows");
 		slayerPlugin.setAmount(42);
 
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "Perterter", TASK_CANCELED, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "Perterter", TASK_CANCELED, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
 		assertEquals("", slayerPlugin.getTaskName());
@@ -394,7 +508,7 @@ public class SlayerPluginTest
 	@Test
 	public void testSuperiorNotification()
 	{
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "Superior", SUPERIOR_MESSAGE, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "Superior", SUPERIOR_MESSAGE, null, 0);
 
 		when(slayerConfig.showSuperiorNotification()).thenReturn(true);
 		slayerPlugin.onChatMessage(chatMessageEvent);
@@ -406,9 +520,151 @@ public class SlayerPluginTest
 	}
 
 	@Test
+	public void testCorrectlyCapturedTaskKill()
+	{
+		final Player player = mock(Player.class);
+		when(player.getLocalLocation()).thenReturn(new LocalPoint(0, 0));
+		when(client.getLocalPlayer()).thenReturn(player);
+
+		StatChanged statChanged = new StatChanged(
+			Skill.SLAYER,
+			100,
+			2,
+			2
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		slayerPlugin.setTaskName("Dagannoth");
+		slayerPlugin.setAmount(143);
+
+		statChanged = new StatChanged(
+			Skill.SLAYER,
+			110,
+			2,
+			2
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		assertEquals(142, slayerPlugin.getAmount());
+	}
+
+	@Test
+	public void testIncorrectlyCapturedTaskKill()
+	{
+		final Player player = mock(Player.class);
+		when(player.getLocalLocation()).thenReturn(new LocalPoint(0, 0));
+		when(client.getLocalPlayer()).thenReturn(player);
+
+		StatChanged statChanged = new StatChanged(
+			Skill.SLAYER,
+			100,
+			2,
+			2
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		slayerPlugin.setTaskName("Monster");
+		slayerPlugin.setAmount(98);
+
+		assert Task.getTask("Monster") == null;
+
+		statChanged = new StatChanged(
+			Skill.SLAYER,
+			110,
+			2,
+			2
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		assertEquals(97, slayerPlugin.getAmount());
+	}
+
+	@Test
+	public void testJadTaskKill()
+	{
+		final Player player = mock(Player.class);
+		when(player.getLocalLocation()).thenReturn(new LocalPoint(0, 0));
+		when(client.getLocalPlayer()).thenReturn(player);
+
+		StatChanged statChanged = new StatChanged(
+			Skill.SLAYER,
+			100,
+			2,
+			2
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		slayerPlugin.setTaskName("TzTok-Jad");
+		slayerPlugin.setAmount(1);
+
+		// One bat kill
+		statChanged = new StatChanged(
+			Skill.SLAYER,
+			110,
+			2,
+			2
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		assertEquals(1, slayerPlugin.getAmount());
+
+		// One Jad kill
+		statChanged = new StatChanged(
+			Skill.SLAYER,
+			25360,
+			-1,
+			-1
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		assertEquals(0, slayerPlugin.getAmount());
+	}
+
+	@Test
+	public void testZukTaskKill()
+	{
+		final Player player = mock(Player.class);
+		when(player.getLocalLocation()).thenReturn(new LocalPoint(0, 0));
+		when(client.getLocalPlayer()).thenReturn(player);
+
+		StatChanged statChanged = new StatChanged(
+			Skill.SLAYER,
+			110,
+			2,
+			2
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		slayerPlugin.setTaskName("TzKal-Zuk");
+		slayerPlugin.setAmount(1);
+
+		// One bat kill
+		statChanged = new StatChanged(
+			Skill.SLAYER,
+			125,
+			2,
+			2
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		assertEquals(1, slayerPlugin.getAmount());
+
+		// One Zuk kill
+		statChanged = new StatChanged(
+			Skill.SLAYER,
+			102_015,
+			-1,
+			-1
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		assertEquals(0, slayerPlugin.getAmount());
+	}
+
+	@Test
 	public void testBraceletSlaughter()
 	{
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "", BRACLET_SLAUGHTER, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", BRACLET_SLAUGHTER, null, 0);
 
 		slayerPlugin.setAmount(42);
 		slayerPlugin.setSlaughterChargeCount(10);
@@ -418,18 +674,18 @@ public class SlayerPluginTest
 		assertEquals(9, slayerPlugin.getSlaughterChargeCount());
 		assertEquals(43, slayerPlugin.getAmount());
 
-		chatMessageEvent = new ChatMessage(SERVER, "", CHAT_BRACELET_SLAUGHTER_CHARGE, null);
+		chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", CHAT_BRACELET_SLAUGHTER_CHARGE, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
 		assertEquals(12, slayerPlugin.getSlaughterChargeCount());
 
-		chatMessageEvent = new ChatMessage(SERVER, "", CHAT_BRACELET_SLAUGHTER_CHARGE_ONE, null);
+		chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", CHAT_BRACELET_SLAUGHTER_CHARGE_ONE, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
 		assertEquals(1, slayerPlugin.getSlaughterChargeCount());
 
 		slayerPlugin.setSlaughterChargeCount(1);
-		chatMessageEvent = new ChatMessage(SERVER, "", BRACLET_SLAUGHTER_V3, null);
+		chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", BRACLET_SLAUGHTER_V3, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
 		assertEquals(30, slayerPlugin.getSlaughterChargeCount());
@@ -442,7 +698,7 @@ public class SlayerPluginTest
 		slayerPlugin.onGameTick(new GameTick());
 		assertEquals(30, slayerPlugin.getSlaughterChargeCount());
 
-		chatMessageEvent = new ChatMessage(SERVER, "", BRACLET_SLAUGHTER_V2, null);
+		chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", BRACLET_SLAUGHTER_V2, null, 0);
 
 		slayerPlugin.setAmount(42);
 		slayerPlugin.setSlaughterChargeCount(2);
@@ -456,7 +712,7 @@ public class SlayerPluginTest
 	@Test
 	public void testBraceletExpeditious()
 	{
-		ChatMessage chatMessageEvent = new ChatMessage(SERVER, "", BRACLET_EXPEDITIOUS, null);
+		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", BRACLET_EXPEDITIOUS, null, 0);
 
 		slayerPlugin.setAmount(42);
 		slayerPlugin.setExpeditiousChargeCount(10);
@@ -466,18 +722,18 @@ public class SlayerPluginTest
 		assertEquals(41, slayerPlugin.getAmount());
 		assertEquals(9, slayerPlugin.getExpeditiousChargeCount());
 
-		chatMessageEvent = new ChatMessage(SERVER, "", CHAT_BRACELET_EXPEDITIOUS_CHARGE, null);
+		chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", CHAT_BRACELET_EXPEDITIOUS_CHARGE, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
 		assertEquals(12, slayerPlugin.getExpeditiousChargeCount());
 
-		chatMessageEvent = new ChatMessage(SERVER, "", CHAT_BRACELET_EXPEDITIOUS_CHARGE_ONE, null);
+		chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", CHAT_BRACELET_EXPEDITIOUS_CHARGE_ONE, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
 		assertEquals(1, slayerPlugin.getExpeditiousChargeCount());
 
 		slayerPlugin.setExpeditiousChargeCount(1);
-		chatMessageEvent = new ChatMessage(SERVER, "", BRACLET_EXPEDITIOUS_V3, null);
+		chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", BRACLET_EXPEDITIOUS_V3, null, 0);
 		slayerPlugin.onChatMessage(chatMessageEvent);
 
 		assertEquals(30, slayerPlugin.getExpeditiousChargeCount());
@@ -490,7 +746,7 @@ public class SlayerPluginTest
 		slayerPlugin.onGameTick(new GameTick());
 		assertEquals(30, slayerPlugin.getExpeditiousChargeCount());
 
-		chatMessageEvent = new ChatMessage(SERVER, "", BRACLET_EXPEDITIOUS_V2, null);
+		chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "", BRACLET_EXPEDITIOUS_V2, null, 0);
 
 		slayerPlugin.setAmount(42);
 		slayerPlugin.setExpeditiousChargeCount(2);
@@ -511,7 +767,7 @@ public class SlayerPluginTest
 		slayerPlugin.setTaskName("Suqahs");
 		slayerPlugin.setAmount(231);
 
-		ChatMessage chatMessage = new ChatMessage(SERVER, "", TASK_UPDATE_COMBAT_BRACELET, null);
+		ChatMessage chatMessage = new ChatMessage(null, GAMEMESSAGE, "", TASK_UPDATE_COMBAT_BRACELET, null, 0);
 		slayerPlugin.onChatMessage(chatMessage);
 
 		assertEquals("Suqahs", slayerPlugin.getTaskName());
@@ -523,16 +779,16 @@ public class SlayerPluginTest
 	public void testTaskLookup() throws IOException
 	{
 		net.runelite.http.api.chat.Task task = new net.runelite.http.api.chat.Task();
-		task.setTask("task");
-		task.setLocation("loc");
+		task.setTask("Abyssal demons");
+		task.setLocation("Abyss");
 		task.setAmount(42);
 		task.setInitialAmount(42);
 
 		when(slayerConfig.taskCommand()).thenReturn(true);
 		when(chatClient.getTask(anyString())).thenReturn(task);
 
-		SetMessage setMessage = new SetMessage();
-		setMessage.setType(ChatMessageType.PUBLIC);
+		ChatMessage setMessage = new ChatMessage();
+		setMessage.setType(ChatMessageType.PUBLICCHAT);
 		setMessage.setName("Adam");
 		setMessage.setMessageNode(mock(MessageNode.class));
 
@@ -553,13 +809,58 @@ public class SlayerPluginTest
 		when(slayerConfig.taskCommand()).thenReturn(true);
 		when(chatClient.getTask(anyString())).thenReturn(task);
 
-		SetMessage setMessage = new SetMessage();
-		setMessage.setType(ChatMessageType.PUBLIC);
-		setMessage.setName("Adam");
-		setMessage.setMessageNode(mock(MessageNode.class));
+		ChatMessage chatMessage = new ChatMessage();
+		chatMessage.setType(ChatMessageType.PUBLICCHAT);
+		chatMessage.setName("Adam");
+		chatMessage.setMessageNode(mock(MessageNode.class));
 
-		slayerPlugin.taskLookup(setMessage, "!task");
+		slayerPlugin.taskLookup(chatMessage, "!task");
 
 		verify(chatMessageManager, never()).update(any(MessageNode.class));
+	}
+
+	@Test
+	public void testNewAccountSlayerKill()
+	{
+		final Player player = mock(Player.class);
+		when(player.getLocalLocation()).thenReturn(new LocalPoint(0, 0));
+		when(client.getLocalPlayer()).thenReturn(player);
+
+		slayerPlugin.setTaskName("Bears");
+		slayerPlugin.setAmount(35);
+
+		StatChanged statChanged = new StatChanged(
+			Skill.SLAYER,
+			0,
+			1,
+			1
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		statChanged = new StatChanged(
+			Skill.SLAYER,
+			27,
+			1,
+			1
+		);
+		slayerPlugin.onStatChanged(statChanged);
+
+		assertEquals(34, slayerPlugin.getAmount());
+	}
+
+	@Test
+	public void infoboxNotAddedOnLogin()
+	{
+		when(slayerConfig.taskName()).thenReturn(Task.BLOODVELD.getName());
+
+		GameStateChanged loggingIn = new GameStateChanged();
+		loggingIn.setGameState(GameState.LOGGING_IN);
+		slayerPlugin.onGameStateChanged(loggingIn);
+
+		GameStateChanged loggedIn = new GameStateChanged();
+		loggedIn.setGameState(GameState.LOGGED_IN);
+		slayerPlugin.onGameStateChanged(loggedIn);
+
+		verify(infoBoxManager, never()).addInfoBox(any());
 	}
 }
