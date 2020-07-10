@@ -77,10 +77,13 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.config.RuneLiteConfig;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ChatInput;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.OverlayMenuClicked;
+import net.runelite.client.plugins.raids.events.RaidReset;
+import net.runelite.client.plugins.raids.events.RaidScouted;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.input.KeyManager;
@@ -90,9 +93,9 @@ import net.runelite.client.plugins.raids.solver.Layout;
 import net.runelite.client.plugins.raids.solver.LayoutSolver;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
-import net.runelite.client.util.QuantityFormatter;
 import net.runelite.client.util.HotkeyListener;
 import net.runelite.client.util.ImageCapture;
+import net.runelite.client.util.QuantityFormatter;
 import net.runelite.client.util.Text;
 import static net.runelite.client.util.Text.sanitize;
 import net.runelite.client.ws.PartyMember;
@@ -178,6 +181,9 @@ public class RaidsPlugin extends Plugin
 
 	@Inject
 	private ImageCapture imageCapture;
+
+	@Inject
+	private EventBus eventBus;
 
 	@Getter
 	private final Set<String> roomWhitelist = new HashSet<String>();
@@ -506,6 +512,8 @@ public class RaidsPlugin extends Plugin
 		{
 			sendRaidLayoutMessage();
 		}
+
+		eventBus.post(new RaidScouted(raid, firstSolve));
 	}
 
 	private void sendRaidLayoutMessage()
@@ -1008,5 +1016,6 @@ public class RaidsPlugin extends Plugin
 		raid = null;
 		chestOpened = false;
 		updateInfoBoxState();
+		eventBus.post(new RaidReset());
 	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, Raqes <j.raqes@gmail.com>
+ * Copyright (c) 2020, Trevor <https://github.com/Trevor159>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -22,12 +22,21 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package net.runelite.client.plugins.npchighlight;
+package net.runelite.client.plugins.raids.events;
 
-public enum RenderStyle
+import lombok.Value;
+import net.runelite.client.plugins.raids.Raid;
+
+/**
+ * An event that fires when the player scouts a raid
+ *
+ * This will fire every time the raid plugin successfully scouts a raid but mostly fires at LOGGED_IN gamestate changes
+ * This event only fires in scoutable raids (not challenge mode)
+ * The raid object is not guaranteed to change in between events
+ */
+@Value
+public class RaidScouted
 {
-	OFF,
-	TILE,
-	HULL,
-	SOUTH_WEST_TILE
+	private Raid raid;
+	private boolean firstScout;
 }

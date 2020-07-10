@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, Cameron <https://github.com/noremac201>
+ * Copyright (c) 2020, Adam <Adam@sigterm.info>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -22,24 +22,18 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package net.runelite.client.plugins.experiencedrop;
+package net.runelite.client.plugins.menuentryswapper;
 
-import java.awt.Color;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import lombok.Value;
 
-@AllArgsConstructor
-enum DefaultColors
+@Value
+class Swap
 {
-	WHITE(new Color(0xFF, 0xFF, 0xFF)),
-	LILAC(new Color(0xC8, 0xC8, 0xFF)),
-	CYAN(new Color(0x00, 0xFF, 0xFF)),
-	JADE(new Color(0xC8, 0xFF, 0xC8)),
-	LIME(new Color(0x64, 0xFF, 0x64)),
-	YELLOW(new Color(0xFF, 0xFF, 0x40)),
-	ORANGE(new Color(0xFF, 0x98, 0x1F)),
-	PINK(new Color(0xFF, 0xC8, 0xC8));
-
-	@Getter
-	private final Color color;
+	private Predicate<String> optionPredicate;
+	private Predicate<String> targetPredicate;
+	private String swappedOption;
+	private Supplier<Boolean> enabled;
+	private boolean strict;
 }

@@ -46,7 +46,6 @@ import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
-import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.events.BeforeRender;
 import net.runelite.api.events.ClientTick;
@@ -125,8 +124,12 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 	{
 		if (!event.isFocused())
 		{
-			inOverlayManagingMode = false;
-			resetOverlayManagementMode();
+			if (inOverlayManagingMode)
+			{
+				inOverlayManagingMode = false;
+				resetOverlayManagementMode();
+			}
+
 			inMenuEntryMode = false;
 			menuEntries = null;
 		}
@@ -597,7 +600,7 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 	@Override
 	public void keyReleased(KeyEvent e)
 	{
-		if (!e.isAltDown())
+		if (!e.isAltDown() && inOverlayManagingMode)
 		{
 			inOverlayManagingMode = false;
 			resetOverlayManagementMode();
@@ -792,6 +795,11 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 	private MenuEntry[] createRightClickMenuEntries(Overlay overlay)
 	{
 		List<OverlayMenuEntry> menuEntries = overlay.getMenuEntries();
+		if (menuEntries.isEmpty())
+		{
+			return null;
+		}
+
 		final MenuEntry[] entries = new MenuEntry[menuEntries.size()];
 
 		// Add in reverse order so they display correctly in the right-click menu
@@ -802,7 +810,7 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 			final MenuEntry entry = new MenuEntry();
 			entry.setOption(overlayMenuEntry.getOption());
 			entry.setTarget(ColorUtil.wrapWithColorTag(overlayMenuEntry.getTarget(), JagexColors.MENU_TARGET));
-			entry.setType(MenuAction.RUNELITE_OVERLAY.getId());
+			entry.setType(overlayMenuEntry.getMenuAction().getId());
 			entry.setIdentifier(overlayManager.getOverlays().indexOf(overlay)); // overlay id
 
 			entries[i] = entry;
