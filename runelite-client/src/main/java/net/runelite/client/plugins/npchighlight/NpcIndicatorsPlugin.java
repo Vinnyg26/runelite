@@ -187,7 +187,6 @@ public class NpcIndicatorsPlugin extends Plugin
 	{
 		overlayManager.add(npcSceneOverlay);
 		overlayManager.add(npcMinimapOverlay);
-		highlights = getHighlights();
 		clientThread.invoke(() ->
 		{
 			skipNextSpawnCheck = true;
@@ -200,13 +199,16 @@ public class NpcIndicatorsPlugin extends Plugin
 	{
 		overlayManager.remove(npcSceneOverlay);
 		overlayManager.remove(npcMinimapOverlay);
-		deadNpcsToDisplay.clear();
-		memorizedNpcs.clear();
-		spawnedNpcsThisTick.clear();
-		despawnedNpcsThisTick.clear();
-		teleportGraphicsObjectSpawnedThisTick.clear();
-		npcTags.clear();
-		highlightedNpcs.clear();
+		clientThread.invoke(() ->
+		{
+			deadNpcsToDisplay.clear();
+			memorizedNpcs.clear();
+			spawnedNpcsThisTick.clear();
+			despawnedNpcsThisTick.clear();
+			teleportGraphicsObjectSpawnedThisTick.clear();
+			npcTags.clear();
+			highlightedNpcs.clear();
+		});
 	}
 
 	@Subscribe
@@ -231,8 +233,7 @@ public class NpcIndicatorsPlugin extends Plugin
 			return;
 		}
 
-		highlights = getHighlights();
-		rebuildAllNpcs();
+		clientThread.invoke(this::rebuildAllNpcs);
 	}
 
 	@Subscribe
@@ -344,8 +345,11 @@ public class NpcIndicatorsPlugin extends Plugin
 
 			if (removed)
 			{
-				highlightedNpcs.remove(npc);
-				memorizedNpcs.remove(npc.getIndex());
+				if (!highlightMatchesNPCName(npc.getName()))
+				{
+					highlightedNpcs.remove(npc);
+					memorizedNpcs.remove(npc.getIndex());
+				}
 			}
 			else
 			{
@@ -385,17 +389,13 @@ public class NpcIndicatorsPlugin extends Plugin
 			return;
 		}
 
-		for (String highlight : highlights)
+		if (highlightMatchesNPCName(npcName))
 		{
-			if (WildcardMatcher.matches(highlight, npcName))
+			highlightedNpcs.add(npc);
+			if (!client.isInInstancedRegion())
 			{
-				highlightedNpcs.add(npc);
-				if (!client.isInInstancedRegion())
-				{
-					memorizeNpc(npc);
-					spawnedNpcsThisTick.add(npc);
-				}
-				break;
+				memorizeNpc(npc);
+				spawnedNpcsThisTick.add(npc);
 			}
 		}
 	}
@@ -517,8 +517,10 @@ public class NpcIndicatorsPlugin extends Plugin
 		return Text.fromCSV(configNpcs);
 	}
 
-	private void rebuildAllNpcs()
+	@VisibleForTesting
+	void rebuildAllNpcs()
 	{
+		highlights = getHighlights();
 		highlightedNpcs.clear();
 
 		if (client.getGameState() != GameState.LOGGED_IN &&
@@ -529,7 +531,6 @@ public class NpcIndicatorsPlugin extends Plugin
 			return;
 		}
 
-		outer:
 		for (NPC npc : client.getNpcs())
 		{
 			final String npcName = npc.getName();
@@ -545,22 +546,32 @@ public class NpcIndicatorsPlugin extends Plugin
 				continue;
 			}
 
-			for (String highlight : highlights)
+			if (highlightMatchesNPCName(npcName))
 			{
-				if (WildcardMatcher.matches(highlight, npcName))
+				if (!client.isInInstancedRegion())
 				{
-					if (!client.isInInstancedRegion())
-					{
-						memorizeNpc(npc);
-					}
-					highlightedNpcs.add(npc);
-					continue outer;
+					memorizeNpc(npc);
 				}
+				highlightedNpcs.add(npc);
+				continue;
 			}
 
 			// NPC is not highlighted
 			memorizedNpcs.remove(npc.getIndex());
 		}
+	}
+
+	private boolean highlightMatchesNPCName(String npcName)
+	{
+		for (String highlight : highlights)
+		{
+			if (WildcardMatcher.matches(highlight, npcName))
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private void validateSpawnedNpcs()

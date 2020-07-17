@@ -68,7 +68,6 @@ public class XpDropPlugin extends Plugin
 	private boolean correctPrayer;
 	private Skill lastSkill = null;
 	private Map<Skill, Integer> previousSkillExpTable = new EnumMap<>(Skill.class);
-	private PrayerType currentTickPrayer;
 
 	@Provides
 	XpDropConfig provideConfig(ConfigManager configManager)
@@ -93,17 +92,17 @@ public class XpDropPlugin extends Plugin
 	private void processXpDrop(int widgetId)
 	{
 		final Widget xpdrop = client.getWidget(TO_GROUP(widgetId), TO_CHILD(widgetId));
-		final Widget[] children = xpdrop.getDynamicChildren();
+		final Widget[] children = xpdrop.getChildren();
 		// child 0 is the xpdrop text, everything else are sprite ids for skills
 		final Widget text = children[0];
 
 		if (config.hideSkillIcons())
 		{
 			// keep only text
-			xpdrop.setChildren(Arrays.copyOf(children, 1));
+			Arrays.fill(children, 1, children.length, null);
 		}
 
-		PrayerType prayer = currentTickPrayer;
+		PrayerType prayer = getActivePrayerType();
 		if (prayer == null)
 		{
 			resetTextColor(text);
@@ -115,7 +114,7 @@ public class XpDropPlugin extends Plugin
 				.skip(1) // skip text
 				.mapToInt(Widget::getSpriteId);
 
-		int color = text.getTextColor();
+		int color = 0;
 
 		switch (prayer)
 		{
@@ -143,7 +142,14 @@ public class XpDropPlugin extends Plugin
 				break;
 		}
 
-		text.setTextColor(color);
+		if (color != 0)
+		{
+			text.setTextColor(color);
+		}
+		else
+		{
+			resetTextColor(text);
+		}
 	}
 
 	private void resetTextColor(Widget widget)
@@ -169,7 +175,6 @@ public class XpDropPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick tick)
 	{
-		currentTickPrayer = getActivePrayerType();
 		correctPrayer = false;
 
 		final int fakeTickDelay = config.fakeXpDropDelay();
