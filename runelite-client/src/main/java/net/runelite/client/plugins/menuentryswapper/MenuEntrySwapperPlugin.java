@@ -208,6 +208,7 @@ public class MenuEntrySwapperPlugin extends Plugin
 		swap("talk-to", "enchant", config::swapEnchant);
 		swap("talk-to", "start-minigame", config::swapStartMinigame);
 		swap("talk-to", ESSENCE_MINE_NPCS::contains, "teleport", config::swapEssenceMineTeleport);
+		swap("talk-to", "collect", config::swapCollectMiscellania);
 
 		swap("leave tomb", "quick-leave", config::swapQuickLeave);
 		swap("tomb door", "quick-leave", config::swapQuickLeave);
@@ -231,12 +232,14 @@ public class MenuEntrySwapperPlugin extends Plugin
 		swap("view", "add-house", () -> config.swapHouseAdvertisement() == HouseAdvertisementMode.ADD_HOUSE);
 		swap("view", "visit-last", () -> config.swapHouseAdvertisement() == HouseAdvertisementMode.VISIT_LAST);
 
-		for (String option : new String[]{"zanaris", "configure", "tree"})
+		for (String option : new String[]{"zanaris", "tree"})
 		{
 			swapContains(option, alwaysTrue(), "last-destination", () -> config.swapFairyRing() == FairyRingMode.LAST_DESTINATION);
 			swapContains(option, alwaysTrue(), "configure", () -> config.swapFairyRing() == FairyRingMode.CONFIGURE);
 		}
 
+		swapContains("configure", alwaysTrue(), "last-destination", () ->
+			config.swapFairyRing() == FairyRingMode.LAST_DESTINATION || config.swapFairyRing() == FairyRingMode.ZANARIS);
 		swapContains("tree", alwaysTrue(), "zanaris", () -> config.swapFairyRing() == FairyRingMode.ZANARIS);
 
 		swap("check", "reset", config::swapBoxTrap);
@@ -263,7 +266,7 @@ public class MenuEntrySwapperPlugin extends Plugin
 
 		swap("teleport menu", "duel arena", config::swapJewelleryBox);
 		swap("teleport menu", "castle wars", config::swapJewelleryBox);
-		swap("teleport menu", "clan wars", config::swapJewelleryBox);
+		swap("teleport menu", "ferox enclave", config::swapJewelleryBox);
 		swap("teleport menu", "burthorpe", config::swapJewelleryBox);
 		swap("teleport menu", "barbarian outpost", config::swapJewelleryBox);
 		swap("teleport menu", "corporeal beast", config::swapJewelleryBox);
