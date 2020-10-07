@@ -203,6 +203,7 @@ public class MenuEntrySwapperPlugin extends Plugin
 		swap("talk-to", "ungael", config::swapTravel);
 		swap("talk-to", "pirate's cove", config::swapTravel);
 		swap("talk-to", "waterbirth island", config::swapTravel);
+		swap("talk-to", "island of stone", config::swapTravel);
 		swap("talk-to", "miscellania", config::swapTravel);
 		swap("talk-to", "follow", config::swapTravel);
 		swap("talk-to", "transport", config::swapTravel);
@@ -323,6 +324,8 @@ public class MenuEntrySwapperPlugin extends Plugin
 		swap("wield", "teleport", config::swapTeleportItem);
 
 		swap("bury", "use", config::swapBones);
+
+		swap("clean", "use", config::swapHerbs);
 
 		swap("collect-note", "collect-item", () -> config.swapGEItemCollect() == GEItemCollectMode.ITEMS);
 		swap("collect-notes", "collect-items", () -> config.swapGEItemCollect() == GEItemCollectMode.ITEMS);
